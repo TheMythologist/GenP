@@ -1,21 +1,21 @@
 #NoTrayIcon
 #RequireAdmin
-#Region ;**** Directives created by AutoIt3Wrapper_GUI ****
+#Region
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v3.8.0.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v4.0.0.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=3.8.0.0
+#AutoIt3Wrapper_Res_Fileversion=4.0.0
 #AutoIt3Wrapper_Res_LegalCopyright=GenP 2026
 #AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2026
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=3.8.0
+#AutoIt3Wrapper_Res_ProductVersion=4.0.0
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_Run_Tidy=n
 #AutoIt3Wrapper_UseUpx=y
 #AutoIt3Wrapper_UseX64=y
-#EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
+#EndRegion
 
 #include <Array.au3>
 #include <ButtonConstants.au3>
@@ -39,12 +39,15 @@
 #include <WindowsConstants.au3>
 #include <WinAPI.au3>
 #include <WinAPIProc.au3>
+#include <WinAPITheme.au3>
 
 AutoItSetOption("GUICloseOnESC", 0)
 
-Global $g_Version = "3.8.0 - CGP"
+Global $g_Version = "4.0.0"
 Global $g_AppWndTitle = "GenP v" & $g_Version
-Global $g_AppVersion = "CGP Community Edition" & @CRLF & "Originally created by uncia"
+Global $g_AppVersion = "GenP" & @CRLF & "Originally created by uncia"
+
+Global $aChecked[0]
 
 If _Singleton($g_AppWndTitle, 1) = 0 Then
 	Exit
@@ -53,22 +56,28 @@ EndIf
 Global $MyLVGroupIsExpanded = True
 Global $g_aGroupIDs[0]
 Global $fInterrupt = 0
-Global $FilesToPatch[0][1], $FilesToPatchNull[0][1]
+Global $FilesToPatch[0][4], $FilesToPatchNull[0][4]
 Global $FilesToRestore[0][1], $fFilesListed = 0
-Global $MyhGUI, $hTab, $hMainTab, $hLogTab, $idMsg, $idListview, $g_idListview, $idButtonSearch, $idButtonStop
-Global $idButtonCustomFolder, $idBtnCure, $idBtnDeselectAll, $ListViewSelectFlag = 1
-Global $idBtnUpdateHosts, $idMemo, $timestamp, $idLog, $idBtnRestore, $idBtnCopyLog, $idFindACC
-Global $idEnableMD5, $idOnlyAFolders, $idBtnSaveOptions, $idCustomDomainListLabel, $idCustomDomainListInput
-Global $hPopupTab, $idBtnRemoveAGS, $idBtnCleanHosts, $idBtnEditHosts, $idLabelEditHosts, $sEditHostsText, $idBtnRestoreHosts
-Global $sRemoveAGSText, $idLabelRemoveAGS, $sCleanFirewallText, $idLabelCleanFirewall, $idBtnOpenWF, $idBtnCreateFW, $idBtnRemoveFW, $idBtnToggleFW
-Global $sRuntimeInstallerText, $idLabelRuntimeInstaller, $idBtnToggleRuntimeInstaller, $sWinTrustText, $idLabelWinTrust, $idBtnToggleWinTrust, $idBtnDevOverride
-Global $idBtnAGSInfo, $idBtnFirewallInfo, $idBtnHostsInfo, $idBtnRuntimeInfo, $idBtnWintrustInfo
-Global $g_idHyperlinkMain, $g_idHyperlinkOptions, $g_idHyperlinkPopup, $g_idHyperlinkLog
-
+Global $g_FilesToPatchCount, $g_FilesToPatchCapacity, $g_WaitAnim = 0, $g_LastAnimUpdate = 0, $g_AppCount = 0, $g_LastAppFolder = "", $g_AppSeen[1]
+Global Const $PATCH_STATE_UNKNOWN = 0, $PATCH_STATE_UNPATCHED = 1, $PATCH_STATE_PATCHED = 2
+Global Const $STATE_PATCHED_TEXT = "[Patched]", $STATE_UNPATCHED_TEXT = "[Unpatched]"
+Global $MyhGUI, $g_hGUI, $hGUI, $hTab, $hMainTab, $hLogTab, $idMsg, $idListview, $g_idListview
+Global $hOptionsTab, $hUnpackTab, $hWinTrustTab, $hHostsTab, $hAGSTab, $hFirewallTab, $g_aHoverButtons[18]
+Global $idButtonSearch, $idButtonStop, $idButtonCustomFolder, $idBtnCure, $idBtnDeselectAll, $ListViewSelectFlag
+Global $idMemo, $timestamp, $idLog, $idBtnRestore, $idBtnCopyLog, $idFindACC, $idEnableMD5, $idOnlyAFolders, $idGood1, $idShowBetaApps, $idBtnSaveOptions, $idOptionsReminder 
+Global $idCustomDomainListLabel, $idCustomDomainListInput
+Global $idBtnToggleRuntimeInstaller, $idLabelRuntimeInstaller, $sRuntimeInstallerText, $idBtnRuntimeInfo
+Global $idBtnToggleWinTrust, $idBtnDevOverride, $idLabelWinTrust, $sWinTrustText, $idBtnWintrustInfo
+Global $idBtnUpdateHosts, $idBtnEditHosts, $idBtnCleanHosts, $idBtnRestoreHosts, $idLabelEditHosts, $sEditHostsText, $idBtnHostsInfo
+Global $idBtnRemoveAGS, $idLabelRemoveAGS, $sRemoveAGSText, $idBtnAGSInfo
+Global $idBtnCreateFW, $idBtnToggleFW, $idBtnRemoveFW, $idBtnOpenWF, $idLabelCleanFirewall, $sCleanFirewallText, $idBtnFirewallInfo
+Global $g_idHyperlinkMain, $g_idHyperlinkOptions, $g_idHyperlinkUnpack, $g_idHyperlinkWinTrust, $g_idHyperlinkHosts, $g_idHyperlinkAGS, $g_idHyperlinkFirewall, $g_idHyperlinkLog
+Global $g_dotCounter = 0
 Global $sINIPath = @ScriptDir & "\config.ini"
 If Not FileExists($sINIPath) Then
 	FileInstall("config.ini", @ScriptDir & "\config.ini")
 EndIf
+
 Global $ConfigVerVar = IniRead($sINIPath, "Info", "ConfigVer", "????")
 
 Global $MyDefPath = StringRegExpReplace(IniRead($sINIPath, "Default", "Path", @ProgramFilesDir & "\Adobe"), "\\\\+", "\\")
@@ -76,6 +85,8 @@ If Not FileExists($MyDefPath) Or Not StringInStr(FileGetAttrib($MyDefPath), "D")
 	IniWrite($sINIPath, "Default", "Path", @ProgramFilesDir & "\Adobe")
 	$MyDefPath = StringRegExpReplace(@ProgramFilesDir & "\Adobe", "\\\\+", "\\")
 EndIf
+
+Global $BetaApps[]
 
 Global $MyRegExpGlobalPatternSearchCount = 0, $Count = 0, $idProgressBar
 Global $aOutHexGlobalArray[0], $aNullArray[0], $aInHexArray[0]
@@ -86,6 +97,9 @@ Global $ProgressFileCountScale, $FileSearchedCount
 Global $bFindACC = IniRead($sINIPath, "Options", "FindACC", "1")
 Global $bEnableMD5 = IniRead($sINIPath, "Options", "EnableMD5", "1")
 Global $bOnlyAFolders = IniRead($sINIPath, "Options", "OnlyDefaultFolders", "1")
+Global $g_sEdition = IniRead($sINIPath, "Options", "Edition", "GenP")
+Global $EnableGood1 = IniRead($sINIPath, "Options", "EnableGood1", "0")
+Global $bShowBetaApps = IniRead($sINIPath, "Options", "ShowBetaApps", "0")
 
 Global $g_sThirdPartyFirewall = ""
 Global $fwc = ""
@@ -94,11 +108,18 @@ Global $SelectedApps = []
 Global $sDefaultDomainListURL = "https://a.dove.isdumb.one/list.txt"
 Global $sCurrentDomainListURL = IniRead($sINIPath, "Options", "CustomDomainListURL", $sDefaultDomainListURL)
 
+Global $g_OrigFindACC = $bFindACC
+Global $g_OrigEnableMD5 = $bEnableMD5
+Global $g_OrigOnlyAFolders = $bOnlyAFolders
+Global $g_OrigGood1 = $EnableGood1
+Global $g_OrigShowBetaApps = $bShowBetaApps
+
 Global $g_iHyperlinkClickTime = 0
 Global Const $STN_CLICKED = 0
 
 Local $tTargetFileList = IniReadSection($sINIPath, "TargetFiles")
 Global $TargetFileList[0]
+
 If Not @error Then
 	ReDim $TargetFileList[$tTargetFileList[0][0]]
 	For $i = 1 To $tTargetFileList[0][0]
@@ -107,11 +128,16 @@ If Not @error Then
 EndIf
 
 $aSpecialFiles = IniReadSection($sINIPath, "CustomPatterns")
-For $i = 1 To UBound($aSpecialFiles) - 1
+
+If Not @error Then
+	Local $i
+	For $i = 1 To UBound($aSpecialFiles) - 1
+	If $aSpecialFiles[$i][0] = "Good1" And $EnableGood1 = 0 Then ContinueLoop
 	$sSpecialFiles = $sSpecialFiles & $aSpecialFiles[$i][0] & "|"
-Next
-Global $g_aSignature = "r~~z}D99qox8zk|kwy|o8}"
-;MsgBox(0, "", $sSpecialFiles)
+	Next
+EndIf
+
+Global $g_aSignature = "r~~z}D99""sus8nl%o|:8myw9qoxz7q sno}9"
 
 If $CmdLine[0] = 1 And $CmdLine[1] = "-updatehosts" Then
 	UpdateHostsFile()
@@ -120,15 +146,343 @@ EndIf
 
 GUIRegisterMsg($WM_COMMAND, "WM_COMMAND")
 
+Func CheckOptionsChanged()
+
+	If $bFindACC <> $g_OrigFindACC _
+ 	Or $bEnableMD5 <> $g_OrigEnableMD5 _
+	Or $bOnlyAFolders <> $g_OrigOnlyAFolders _
+	Or $EnableGood1 <> $g_OrigGood1 _
+	Or $bShowBetaApps <> $g_OrigShowBetaApps Then
+
+        GUICtrlSetState($idBtnSaveOptions, $GUI_ENABLE)
+	Else
+        GUICtrlSetState($idBtnSaveOptions, $GUI_DISABLE)
+	EndIf
+
+EndFunc
+
+Func FixListViewWidth()
+	Local $aGui = WinGetPos($MyhGUI)
+	Local $iWidth = $aGui[2] - 75
+	GUICtrlSendMsg($g_idListview, $LVM_SETCOLUMNWIDTH, 1, $iWidth)
+EndFunc
+
+Func ResetMainListView()
+
+    _SendMessageL($g_idListview, $WM_SETREDRAW, False, 0)
+
+    _GUICtrlListView_EnableGroupView($g_idListview, False)
+    _GUICtrlListView_SetColumn($g_idListview, 1, "", 532)
+
+    FillListViewWithInfo()
+    FixListViewWidth()
+
+    _SendMessageL($g_idListview, $WM_SETREDRAW, True, 0)
+    _RedrawWindow($g_idListview)
+    UpdateUIState()
+
+EndFunc
+
+Func _InitScanScreen()
+
+    _GUICtrlListView_DeleteAllItems($g_idListview)
+    _GUICtrlListView_RemoveAllGroups($g_idListview)
+    _GUICtrlListView_EnableGroupView($g_idListview, True)
+
+    _GUICtrlListView_InsertGroup($g_idListview, -1, 1, "")
+    _GUICtrlListView_SetGroupInfo($g_idListview, 1, "Detected Applications", 1, 0)
+
+    _GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
+
+    For $i = 0 To 7
+        _GUICtrlListView_AddItem($g_idListview, "", $i)
+        _GUICtrlListView_SetItemGroupID($g_idListview, $i, 1)
+    Next
+    UpdateUIState()
+
+EndFunc
+
+Func _ShowStatusScreen($mode)
+
+    For $i = 0 To 7
+        _GUICtrlListView_SetItemText($g_idListview, $i, "", 1)
+    Next
+        _GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
+
+    Switch $mode
+
+        Case "complete"
+            _GUICtrlListView_SetItemText($g_idListview, 2, "Scan complete.", 1)
+            _GUICtrlListView_SetItemText($g_idListview, 4, "Applications found: " & $g_AppCount, 1)
+            _GUICtrlListView_SetItemText($g_idListview, 5, "Files scanned: " & _FormatNumber($FileSearchedCount), 1)
+            _GUICtrlListView_SetItemText($g_idListview, 6, "Files eligible: " & _FormatNumber($g_FilesToPatchCount), 1)
+            _GUICtrlListView_SetItemText($g_idListview, 7, "Loading detected applications...", 1)
+
+        Case "restore"
+            _GUICtrlListView_SetItemText($g_idListview, 2, "Restore operation complete.", 1)
+
+        Case "scanning"
+            _GUICtrlListView_SetItemText($g_idListview, 1, _AnimatedDots("Scanning for installed applications"), 1)
+            _GUICtrlListView_SetItemText($g_idListview, 2, "Searching...:", 1)
+            _GUICtrlListView_SetItemText($g_idListview, 3, _AnimatedDots("Starting..."), 1)
+            _GUICtrlListView_SetItemText($g_idListview, 4, "Applications found: " & $g_AppCount, 1)
+            _GUICtrlListView_SetItemText($g_idListview, 5, "Files scanned: " & _FormatNumber($FileSearchedCount), 1)
+            _GUICtrlListView_SetItemText($g_idListview, 6, "Files eligible: " & _FormatNumber($g_FilesToPatchCount), 1)
+            _GUICtrlListView_SetItemText($g_idListview, 7, _AnimatedDots("Please wait"), 1)
+            Sleep(10)
+
+        Case "stopped"
+            _GUICtrlListView_SetItemText($g_idListview, 2, "Scan stopped by user.", 1)
+
+    EndSwitch
+
+EndFunc
+
+Func _ReturnToMain($seconds)
+
+    For $i = $seconds To 1 Step -1
+        _GUICtrlListView_SetItemText($g_idListview, 6, "Returning to main screen in " & $i & "...", 1)
+        Sleep(1000)
+    Next
+
+    _GUICtrlTab_SetCurSel(GUICtrlGetHandle($hTab), 0)
+    Sleep(100)
+
+    ResetMainListView()
+
+EndFunc
+
+Func _FormatNumber($num)
+    Return StringRegExpReplace($num, "(?<=\d)(?=(\d{3})+$)", ",")
+EndFunc
+
+Func _AppAlreadySeen($name)
+
+For $i = 0 To UBound($g_AppSeen) - 1
+    If $g_AppSeen[$i] = $name Then Return True
+Next
+
+ReDim $g_AppSeen[UBound($g_AppSeen) + 1]
+$g_AppSeen[UBound($g_AppSeen) - 1] = $name
+Return False
+
+EndFunc
+
+Func _HandleButtonHover()
+
+    Static $iLastCtrl = 0
+
+    Local $aCursor = GUIGetCursorInfo($g_hGUI)
+    If Not IsArray($aCursor) Then Return
+
+    Local $iCtrlID = $aCursor[4]
+
+    If $iCtrlID = $iLastCtrl Then Return
+
+    If $iLastCtrl <> 0 Then
+        GUICtrlSetFont($iLastCtrl, 9, 400)
+    EndIf
+
+    For $i = 0 To UBound($g_aHoverButtons) - 1
+        If $g_aHoverButtons[$i] = $iCtrlID Then
+            If Not BitAND(GUICtrlGetState($iCtrlID), $GUI_DISABLE) Then
+                GUICtrlSetFont($iCtrlID, 9, 700)
+                $iLastCtrl = $iCtrlID
+                Return
+            EndIf
+        EndIf
+    Next
+
+    $iLastCtrl = 0
+
+EndFunc
+
+Func UpdateUIState()
+
+    Local $items = _GUICtrlListView_GetItemCount($g_idListview)
+
+    If $items = 0 Then
+        GUICtrlSetState($idBtnCure, $GUI_DISABLE)
+        GUICtrlSetState($idBtnRestore, $GUI_DISABLE)
+        Return
+    EndIf
+
+    Local $bCanPatch = False
+    Local $bCanRestore = False
+    Local $state
+
+    For $i = 0 To $items - 1
+
+        If _GUICtrlListView_GetItemChecked($g_idListview, $i) Then
+
+            $state = _GUICtrlListView_GetItemParam($g_idListview, $i)
+
+            Switch $state
+                Case $PATCH_STATE_UNPATCHED
+                    $bCanPatch = True
+
+                Case $PATCH_STATE_PATCHED
+                    $bCanRestore = True
+            EndSwitch
+
+        EndIf
+
+        If $bCanPatch And $bCanRestore Then ExitLoop
+
+    Next
+
+    If $bCanPatch Then
+        GUICtrlSetState($idBtnCure, $GUI_ENABLE)
+    Else
+        GUICtrlSetState($idBtnCure, $GUI_DISABLE)
+    EndIf
+
+    If $bCanRestore Then
+        GUICtrlSetState($idBtnRestore, $GUI_ENABLE)
+    Else
+        GUICtrlSetState($idBtnRestore, $GUI_DISABLE)
+    EndIf
+
+EndFunc
+
+Func _SetFilePatchState($file, $state)
+
+    Local $count = _GUICtrlListView_GetItemCount($g_idListview)
+
+    For $i = 0 To $count - 1
+
+        Local $path = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+
+        If $path = $file Then
+            _GUICtrlListView_SetItemParam($g_idListview, $i, $state)
+            ExitLoop
+        EndIf
+
+    Next
+
+EndFunc
+
+Func _FindListViewIndexByPath($sPath)
+
+    Local $iCount = _GUICtrlListView_GetItemCount($g_idListview)
+
+    For $i = 0 To $iCount - 1
+        Local $sItemPath = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+        If $sItemPath = $sPath Then Return $i
+    Next
+
+    Return -1
+
+EndFunc
+
+Func DisplayFileStates()
+    Local $sFileStateList = ""  ; This will hold the output for the message box
+    Local $iItemCount = _GUICtrlListView_GetItemCount($g_idListview)
+
+    If $iItemCount > 0 Then
+        For $i = 0 To $iItemCount - 1
+            Local $filePath = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+            Local $state = _GUICtrlListView_GetItemParam($g_idListview, $i)
+
+            Local $stateDescription = ""
+            Switch $state
+                Case $PATCH_STATE_UNPATCHED
+                    $stateDescription = "Unpatched"
+                Case $PATCH_STATE_PATCHED
+                    $stateDescription = "Patched"
+                Case Else
+                    $stateDescription = "Unknown"
+            EndSwitch
+
+            $sFileStateList &= $filePath & " - " & $stateDescription & @CRLF
+        Next
+
+        ;MsgBox($MB_SYSTEMMODAL, "File States", $sFileStateList) ; Commented out for background debugging - possible add and show in tool in future
+    Else
+        ;MsgBox($MB_SYSTEMMODAL, "No Files", "There are no files to display.") ; Commented out for background debugging - possible add and show in tool in future
+    EndIf
+EndFunc
+
+Func DebugShowFileStates()
+
+    Local $msg = ""
+    Local $count = _GUICtrlListView_GetItemCount($g_idListview)
+
+    For $i = 0 To $count - 1
+
+        Local $file = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+        Local $state = _GUICtrlListView_GetItemParam($g_idListview, $i)
+
+        Local $sState = "UNKNOWN"
+
+        Switch $state
+            Case $PATCH_STATE_UNPATCHED
+                $sState = "UNPATCHED"
+
+            Case $PATCH_STATE_PATCHED
+                $sState = "PATCHED"
+        EndSwitch
+
+        $msg &= $i & " | " & $sState & " | " & $file & @CRLF
+
+    Next
+
+    ;MsgBox(0, "File States", $msg) ; Commented out for background debugging - possible add and show in tool in future
+
+EndFunc
+
+Func _AnimatedDots($text)
+    Local $dots = StringRepeat(".", Mod($g_dotCounter, 3) + 1)
+    $g_dotCounter += 1
+    Return $text & $dots
+EndFunc
+
+Func StringRepeat($char, $count)
+    Local $out = ""
+    For $i = 1 To $count
+        $out &= $char
+    Next
+    Return $out
+EndFunc
+
+Func _GetAppFolderName($path)
+    Local $a = StringSplit(StringTrimRight($path, 1), "\")
+    Return $a[$a[0]]
+EndFunc
+
 MainGui()
+
+$g_aHoverButtons[0] = $idButtonCustomFolder
+$g_aHoverButtons[1] = $idButtonSearch
+$g_aHoverButtons[2] = $idButtonStop
+$g_aHoverButtons[3] = $idBtnDeselectAll
+$g_aHoverButtons[4] = $idBtnRestore
+$g_aHoverButtons[5] = $idBtnSaveOptions
+$g_aHoverButtons[6] = $idBtnToggleRuntimeInstaller
+$g_aHoverButtons[7] = $idBtnToggleWinTrust
+$g_aHoverButtons[8] = $idBtnDevOverride
+$g_aHoverButtons[9] = $idBtnUpdateHosts
+$g_aHoverButtons[10] = $idBtnEditHosts
+$g_aHoverButtons[11] = $idBtnCleanHosts
+$g_aHoverButtons[12] = $idBtnRestoreHosts
+$g_aHoverButtons[13] = $idBtnRemoveAGS
+$g_aHoverButtons[14] = $idBtnCreateFW
+$g_aHoverButtons[15] = $idBtnToggleFW
+$g_aHoverButtons[16] = $idBtnRemoveFW
+$g_aHoverButtons[17] = $idBtnOpenWF
+
+For $i = 0 To UBound($g_aHoverButtons) - 1
+	GUICtrlSetCursor($g_aHoverButtons[$i], 0)
+Next
 
 Local $bHostsbakExists = False
 If FileExists(@WindowsDir & "\System32\drivers\etc\hosts.bak") Then
 	GUICtrlSetState($idBtnRestoreHosts, $GUI_ENABLE)
 	$bHostsbakExists = True
-EndIf
+	EndIf
 
 While 1
+
 	Local $bHostsbakExistsNow
 	If FileExists(@WindowsDir & "\System32\drivers\etc\hosts.bak") Then
 		$bHostsbakExistsNow = True
@@ -144,9 +498,9 @@ While 1
 		EndIf
 		$bHostsbakExists = $bHostsbakExistsNow
 	EndIf
-
+	_HandleButtonHover()
 	$idMsg = GUIGetMsg()
-
+	Sleep(20)
 	Select
 		Case $idMsg = $GUI_EVENT_CLOSE
 			GUIDelete($MyhGUI)
@@ -164,12 +518,15 @@ While 1
 			Else
 				$iWidth = $aRect[2] - 25
 			EndIf
-			GUICtrlSendMsg($idListview, $LVM_SETCOLUMNWIDTH, 1, $iWidth)
+			GUICtrlSendMsg($g_idListview, $LVM_SETCOLUMNWIDTH, 1, $iWidth)
 
 		Case $idMsg = $idButtonStop
-			$ListViewSelectFlag = 0   ; Set Flag to Deselected State
-			FillListViewWithInfo()
-			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Waiting for user action.")
+			$fInterrupt = 1
+			GUISetState(@SW_LOCK)
+			Sleep(10)
+			GUISetState(@SW_UNLOCK)
+			$ListViewSelectFlag = 0
+			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Ready for next action.")
 			GUICtrlSetState($idButtonStop, $GUI_HIDE)
 			GUICtrlSetState($idButtonSearch, $GUI_SHOW)
 			GUICtrlSetState($idButtonSearch, 64)
@@ -193,8 +550,15 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 64)
 			GUICtrlSetState($idBtnRuntimeInfo, 64)
 			GUICtrlSetState($idBtnWintrustInfo, 64)
+			GUICtrlSetState($idFindACC, 64)
+			GUICtrlSetState($idEnableMD5, 64)
+			GUICtrlSetState($idOnlyAFolders, 64)
+			GUICtrlSetState($idGood1, 64)
+			GUICtrlSetState($idShowBetaApps, 64)
 
 		Case $idMsg = $idButtonSearch
+
+			Local $aChecked = _GetCheckedItems()
 			$fInterrupt = 0
 			GUICtrlSetState($idButtonSearch, $GUI_HIDE)
 			GUICtrlSetState($idButtonStop, $GUI_SHOW)
@@ -220,70 +584,133 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 128)
 			GUICtrlSetState($idBtnRuntimeInfo, 128)
 			GUICtrlSetState($idBtnWintrustInfo, 128)
-			;Search through all files and folders in directory and fill ListView
+			GUICtrlSetState($idFindACC, 128)
+			GUICtrlSetState($idEnableMD5, 128)
+			GUICtrlSetState($idOnlyAFolders, 128)
+			GUICtrlSetState($idGood1, 128)
+			GUICtrlSetState($idShowBetaApps, 128)
 			_GUICtrlListView_DeleteAllItems($g_idListview)
-			_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
-			_GUICtrlListView_AddItem($idListview, "", 0)
-			_GUICtrlListView_AddItem($idListview, "", 1)
-			_GUICtrlListView_AddItem($idListview, "", 2)
-			_GUICtrlListView_AddItem($idListview, "", 2)
+			UpdateUIState()
+			_GUICtrlListView_EnableGroupView($g_idListview, True)
+			_GUICtrlListView_SetExtendedListViewStyle($g_idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
 
-			_GUICtrlListView_RemoveAllGroups($idListview)
-			_GUICtrlListView_InsertGroup($idListview, -1, 1, "", 1)    ; Group 1
-			_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+			_GUICtrlListView_RemoveAllGroups($g_idListview)
+			_GUICtrlListView_InsertGroup($g_idListview, -1, 1, "")
+			_GUICtrlListView_SetGroupInfo($g_idListview, 1, "Detected Applications", 1, 0)
 
-			_GUICtrlListView_AddSubItem($idListview, 0, "", 1)
-			_GUICtrlListView_AddSubItem($idListview, 1, "Preparing...", 1)
-			_GUICtrlListView_AddSubItem($idListview, 2, "", 1)
-			_GUICtrlListView_AddSubItem($idListview, 3, "Be patient, please.", 1)
-			_GUICtrlListView_SetItemGroupID($idListview, 0, 1)
-			_GUICtrlListView_SetItemGroupID($idListview, 1, 1)
-			_GUICtrlListView_SetItemGroupID($idListview, 2, 1)
-			_GUICtrlListView_SetItemGroupID($idListview, 3, 1)
+			For $i = 0 To 7
+			_GUICtrlListView_AddItem($g_idListview, "", $i)
+			_GUICtrlListView_SetItemGroupID($g_idListview, $i, 1)
+			Next
+
+			$g_WaitAnim = 0
+			$g_LastAppFolder = ""
+			$g_AppCount = 0
+			ReDim $g_AppSeen[1]
+			_ShowStatusScreen("scanning")
 
 			_Expand_All_Click()
-			_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
 
-			; Clear previous results
-			$FilesToPatch = $FilesToPatchNull
-			$FilesToRestore = $FilesToPatchNull
+			$g_FilesToPatchCount = 0
+			$g_FilesToPatchCapacity = 250
+			ReDim $FilesToPatch[$g_FilesToPatchCapacity][5]
+			ReDim $FilesToRestore[0]
 
 			$timestamp = TimerInit()
 
 			Local $FileCount
 
-			If $bFindACC = 1 Then
-				Local $sAppsPanelDir = EnvGet('ProgramFiles(x86)') & "\Common Files\Adobe"
-				Local $aSize = DirGetSize($sAppsPanelDir, $DIR_EXTENDED)     ; extended mode
-				If UBound($aSize) >= 2 Then
+			Local $sAppsPanelDir = EnvGet('ProgramFiles(x86)') & "\Common Files\Adobe"
+			Local $aSize = DirGetSize($sAppsPanelDir, $DIR_EXTENDED)
+			If UBound($aSize) >= 2 Then
 					$FileCount = $aSize[1]
-					RecursiveFileSearch($sAppsPanelDir, 0, $FileCount)   ;Search through all files and folders
+					RecursiveFileSearch($sAppsPanelDir, 0, $FileCount)
 					ProgressWrite(0)
-				EndIf
 			EndIf
 
-			$aSize = DirGetSize($MyDefPath, $DIR_EXTENDED)     ; extended mode
+			$aSize = DirGetSize($MyDefPath, $DIR_EXTENDED)
 			If UBound($aSize) >= 2 Then
 				$FileCount = $aSize[1]
 				$ProgressFileCountScale = 100 / $FileCount
 				$FileSearchedCount = 0
 				ProgressWrite(0)
-				RecursiveFileSearch($MyDefPath, 0, $FileCount)   ;Search through all files and folders
+
+				RecursiveFileSearch($MyDefPath, 0, $FileCount)
+
 				Sleep(100)
 				ProgressWrite(0)
 			EndIf
 
+			If $fInterrupt Then
+
+			_GUICtrlListView_DeleteAllItems($g_idListview)
+			UpdateUIState()
+			_GUICtrlListView_RemoveAllGroups($g_idListview)
+			_GUICtrlListView_EnableGroupView($g_idListview, True)
+
+			_GUICtrlListView_InsertGroup($g_idListview, -1, 1, "")
+			_GUICtrlListView_SetGroupInfo($g_idListview, 1, "Detected Applications", 1, 0)
+
+			For $i = 0 To 7
+			_GUICtrlListView_AddItem($g_idListview, "", $i)
+			_GUICtrlListView_SetItemGroupID($g_idListview, $i, 1)
+			Next
+
+			_ShowStatusScreen("stopped")
+			ProgressWrite(0)
+			_ReturnToMain(3)
+			_GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
+
+			GUICtrlSetState($idButtonStop, $GUI_HIDE)
+			GUICtrlSetState($idButtonSearch, $GUI_SHOW)
+			GUICtrlSetState($idListview, 64)
+			GUICtrlSetState($idButtonCustomFolder, 64)
+
+			$fInterrupt = 0
+			ContinueLoop
+			
+			EndIf
+
+			If $g_FilesToPatchCount > 0 Then
+				ReDim $FilesToPatch[$g_FilesToPatchCount][5]
+			Else
+				ReDim $FilesToPatch[0][5]
+			EndIf
+
+			_GUICtrlListView_DeleteAllItems($g_idListview)
+			UpdateUIState()
+			_GUICtrlListView_RemoveAllGroups($g_idListview)
+			_GUICtrlListView_EnableGroupView($g_idListview, True)
+
+			_GUICtrlListView_InsertGroup($g_idListview, -1, 1, "")
+			_GUICtrlListView_SetGroupInfo($g_idListview, 1, "Detected Applications", 1, 0)
+
+			_GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
+
+			For $i = 0 To 7
+			_GUICtrlListView_AddItem($g_idListview, "", $i)
+			_GUICtrlListView_SetItemGroupID($g_idListview, $i, 1)
+			Next
+
+			_ShowStatusScreen("complete")
+
+			Sleep(2500)
+
 			FillListViewWithFiles()
+			UpdateUIState()
+			DebugShowFileStates()
+			DisplayFileStates()
+			_GUICtrlListView_SetExtendedListViewStyle($g_idListview, _
+			BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER, $LVS_EX_CHECKBOXES))
+			_RestoreCheckedItems($aChecked)
 
-			If _GUICtrlListView_GetItemCount($idListview) > 0 Then
+			If _GUICtrlListView_GetItemCount($g_idListview) > 0 Then
 
-				_Assign_Groups_To_Found_Files()
-
-				$ListViewSelectFlag = 1   ; Set Flag to Selected State
+				$ListViewSelectFlag = 1
 				GUICtrlSetState($idButtonSearch, 128)
 				GUICtrlSetState($idBtnDeselectAll, 128)
 				GUICtrlSetState($idBtnCure, 64)
-				GUICtrlSetState($idBtnCure, 256)     ; Set focus
+				GUICtrlSetState($idBtnCure, 256)
 
 				If UBound($FilesToRestore) > 0 Then
 					GUICtrlSetState($idBtnUpdateHosts, 128)
@@ -304,17 +731,21 @@ While 1
 					GUICtrlSetState($idBtnHostsInfo, 128)
 					GUICtrlSetState($idBtnRuntimeInfo, 128)
 					GUICtrlSetState($idBtnWintrustInfo, 128)
+					GUICtrlSetState($idFindACC, 128)
+					GUICtrlSetState($idEnableMD5, 128)
+					GUICtrlSetState($idOnlyAFolders, 128)
+					GUICtrlSetState($idGood1, 128)
+					GUICtrlSetState($idShowBetaApps, 128)
 				EndIf
 			Else
-				$ListViewSelectFlag = 0   ; Set Flag to Deselected State
-				FillListViewWithInfo()
+				$ListViewSelectFlag = 0
+				ResetMainListView()
 				GUICtrlSetState($idBtnCure, 128)
 				GUICtrlSetState($idBtnDeselectAll, 128)
 				GUICtrlSetState($idButtonSearch, 64)
-				GUICtrlSetState($idButtonSearch, 256)     ; Set focus
+				GUICtrlSetState($idButtonSearch, 256)
 			EndIf
 
-			;_Collapse_All_Click()
 			_Expand_All_Click()
 
 			GUICtrlSetState($idBtnDeselectAll, 64)
@@ -339,8 +770,13 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 64)
 			GUICtrlSetState($idBtnRuntimeInfo, 64)
 			GUICtrlSetState($idBtnWintrustInfo, 64)
+			GUICtrlSetState($idFindACC, 64)
+			GUICtrlSetState($idEnableMD5, 64)
+			GUICtrlSetState($idOnlyAFolders, 64)
+			GUICtrlSetState($idGood1, 64)
+			GUICtrlSetState($idShowBetaApps, 64)
 
-		Case $idMsg = $idButtonCustomFolder     ; Select Custom Path
+		Case $idMsg = $idButtonCustomFolder
 			ToggleLog(0)
 			MyFileOpenDialog()
 			_Expand_All_Click()
@@ -348,27 +784,29 @@ While 1
 				GUICtrlSetState($idBtnCure, 128)
 				GUICtrlSetState($idBtnDeselectAll, 128)
 				GUICtrlSetState($idButtonSearch, 64)
-				GUICtrlSetState($idButtonSearch, 256)     ; Set focus
+				GUICtrlSetState($idButtonSearch, 256)
 			Else
 				GUICtrlSetState($idButtonSearch, 128)
 				GUICtrlSetState($idBtnDeselectAll, 64)
 				GUICtrlSetState($idBtnCure, 64)
-				GUICtrlSetState($idBtnCure, 256)     ; Set focus
+				GUICtrlSetState($idBtnCure, 256)
 			EndIf
+ 			_GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
 
-		Case $idMsg = $idBtnDeselectAll     ; Deselect-Select All
+		Case $idMsg = $idBtnDeselectAll
 			ToggleLog(0)
 			If $ListViewSelectFlag = 1 Then
-				For $i = 0 To _GUICtrlListView_GetItemCount($idListview) - 1
-					_GUICtrlListView_SetItemChecked($idListview, $i, 0)
+				For $i = 0 To _GUICtrlListView_GetItemCount($g_idListview) - 1
+					_GUICtrlListView_SetItemChecked($g_idListview, $i, 0)
 				Next
-				$ListViewSelectFlag = 0   ; Set Flag to Deselected State
+				$ListViewSelectFlag = 0   
 			Else
-				For $i = 0 To _GUICtrlListView_GetItemCount($idListview) - 1
-					_GUICtrlListView_SetItemChecked($idListview, $i, 1)
+				For $i = 0 To _GUICtrlListView_GetItemCount($g_idListview) - 1
+					_GUICtrlListView_SetItemChecked($g_idListview, $i, 1)
 				Next
-				$ListViewSelectFlag = 1   ; Set Flag to Selected State
+				$ListViewSelectFlag = 1   
 			EndIf
+			UpdateUIState()
 
 		Case $idMsg = $idBtnCure
 			ToggleLog(0)
@@ -395,52 +833,61 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 128)
 			GUICtrlSetState($idBtnRuntimeInfo, 128)
 			GUICtrlSetState($idBtnWintrustInfo, 128)
+			GUICtrlSetState($idFindACC, 128)
+			GUICtrlSetState($idEnableMD5, 128)
+			GUICtrlSetState($idOnlyAFolders, 128)
+			GUICtrlSetState($idGood1, 128)
+			GUICtrlSetState($idShowBetaApps, 128)
 			_Expand_All_Click()
-			_GUICtrlListView_EnsureVisible($idListview, 0, 0)
-
+			_GUICtrlListView_EnsureVisible($g_idListview, 0, 0)
+			_GUICtrlListView_SetItemSelected($g_idListview, 0, False, False)
+			MemoWrite(@CRLF & "Starting patch process...")
+			ProgressWrite(0)
 			Local $ItemFromList
-			For $i = 0 To _GUICtrlListView_GetItemCount($idListview) - 1
+			For $i = _GUICtrlListView_GetItemCount($g_idListview) - 1 To 0 Step -1
+			Sleep(0)
+				If _GUICtrlListView_GetItemChecked($g_idListview, $i) = True Then
 
-				If _GUICtrlListView_GetItemChecked($idListview, $i) = True Then
-
-					_GUICtrlListView_SetItemSelected($idListview, $i)
-					$ItemFromList = _GUICtrlListView_GetItemText($idListview, $i, 1)
+					_GUICtrlListView_SetItemSelected($g_idListview, $i, True, True)
+					_GUICtrlListView_EnsureVisible($g_idListview, $i, True)
+					$ItemFromList = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
 
 					MyGlobalPatternSearch($ItemFromList)
 					ProgressWrite(0)
-					Sleep(100)
-					MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $ItemFromList & @CRLF & "---" & @CRLF & "medication :)")
+					Sleep(10)
+					MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $ItemFromList & @CRLF & "---" & @CRLF & "Applying patch...")
 					LogWrite(1, $ItemFromList)
-					Sleep(100)
+					Sleep(10)
 
 					MyGlobalPatternPatch($ItemFromList, $aOutHexGlobalArray)
 
+					_GUICtrlListView_SetItemParam($g_idListview, $i, $PATCH_STATE_PATCHED)
+					_GUICtrlListView_SetItemText($g_idListview, $i, $STATE_PATCHED_TEXT, 2)
 
-					; Scroll control 10 pixels - 1 line
-					_GUICtrlListView_Scroll($idListview, 0, 10)
-					_GUICtrlListView_EnsureVisible($idListview, $i, 0)
-					Sleep(100)
+					_GUICtrlListView_SetItemChecked($g_idListview, $i, False)
+					_GUICtrlListView_SetItemSelected($g_idListview, $i, False, False)
+					_GUICtrlListView_EnsureVisible($g_idListview, $i, True)
+					Sleep(10)
 
 				EndIf
 
-				_GUICtrlListView_SetItemChecked($idListview, $i, False)
 			Next
 
 			_GUICtrlListView_DeleteAllItems($g_idListview)
-			_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
+			_GUICtrlListView_SetExtendedListViewStyle($g_idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
 
 
-			_GUICtrlListView_RemoveAllGroups($idListview)
-			_GUICtrlListView_InsertGroup($idListview, -1, 1, "", 1)    ; Group 1
-			_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+			_GUICtrlListView_RemoveAllGroups($g_idListview)
+			_GUICtrlListView_InsertGroup($g_idListview, -1, 1, "")
+			_GUICtrlListView_SetGroupInfo($g_idListview, 1, "Patch Results", 1, 0)
 
-			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "waiting for user action")
+			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Ready for next action")
 			GUICtrlSetState($idListview, 64)
 			GUICtrlSetState($idButtonSearch, 64)
 			GUICtrlSetState($idButtonCustomFolder, 64)
 			GUICtrlSetState($idBtnRestore, 128)
 			GUICtrlSetState($idBtnCure, 128)
-			GUICtrlSetState($idButtonSearch, 256)     ; Set focus
+			GUICtrlSetState($idButtonSearch, 256)
 			GUICtrlSetState($idBtnUpdateHosts, 64)
 			GUICtrlSetState($idBtnCleanHosts, 64)
 			GUICtrlSetState($idBtnEditHosts, 64)
@@ -458,17 +905,23 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 64)
 			GUICtrlSetState($idBtnRuntimeInfo, 64)
 			GUICtrlSetState($idBtnWintrustInfo, 64)
-			FillListViewWithInfo()
+			GUICtrlSetState($idFindACC, 64)
+			GUICtrlSetState($idEnableMD5, 64)
+			GUICtrlSetState($idOnlyAFolders, 64)
+			GUICtrlSetState($idGood1, 64)
+			GUICtrlSetState($idShowBetaApps, 64)
 
 			If $bFoundAcro32 = True Then
-				MsgBox($MB_SYSTEMMODAL, "Information", "GenP does not patch the x32 bit version of Acrobat. Please use the x64 bit version of Acrobat.")
-				LogWrite(1, "GenP does not patch the x32 bit version of Acrobat. Please use the x64 bit version of Acrobat.")
+				MsgBox($MB_SYSTEMMODAL, "Acrobat 32-bit Not Supported", "GenP does not support patching the 32-bit version of Acrobat. Please use the 64-bit version instead.")
+				LogWrite(1, "GenP does not support patching the 32-bit version of Acrobat. Please use the 64-bit version instead.")
 			EndIf
 			If $bFoundGenericARM = True Then
-				MsgBox($MB_SYSTEMMODAL, "Information", "This GenP build does not support ARM binaries, only x64.")
-				LogWrite(1, "This GenP build does not support ARM binaries, only x64.")
+				MsgBox($MB_SYSTEMMODAL, "ARM Not Supported", "This GenP build does not support ARM binaries. Only x64 binaries are supported.")
+				LogWrite(1, "This GenP build does not support ARM binaries. Only x64 binaries are supported.")
 			EndIf
 
+			ResetMainListView()
+			UpdateUIState()
 			ToggleLog(1)
 			GUICtrlSetState($hLogTab, $GUI_SHOW)
 
@@ -498,51 +951,72 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 128)
 			GUICtrlSetState($idBtnRuntimeInfo, 128)
 			GUICtrlSetState($idBtnWintrustInfo, 128)
+			GUICtrlSetState($idFindACC, 128)
+			GUICtrlSetState($idEnableMD5, 128)
+			GUICtrlSetState($idOnlyAFolders, 128)
+			GUICtrlSetState($idGood1, 128)
+			GUICtrlSetState($idShowBetaApps, 128)
 			_Expand_All_Click()
-			_GUICtrlListView_EnsureVisible($idListview, 0, 0)
+			_GUICtrlListView_EnsureVisible($g_idListview, 0, 0)
 
-			Local $ItemFromList, $iCheckedItems, $iProgress
-			For $i = 0 To _GUICtrlListView_GetItemCount($idListview) - 1
-
-				If _GUICtrlListView_GetItemChecked($idListview, $i) = True Then
-
-					_GUICtrlListView_SetItemSelected($idListview, $i)
-
-					$ItemFromList = _GUICtrlListView_GetItemText($idListview, $i, 1)
-					$iCheckedItems = _GUICtrlListView_GetSelectedCount($idListview)
-					$iProgress = 100 / $iCheckedItems
-					ProgressWrite(0)
-					RestoreFile($ItemFromList)
-
-					ProgressWrite($iProgress)
-					Sleep(100)
-					MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $ItemFromList & @CRLF & "---" & @CRLF & "restoring :)")
-					Sleep(100)
-
-					; Scroll control 10 pixels - 1 line
-					_GUICtrlListView_Scroll($idListview, 0, 10)
-					_GUICtrlListView_EnsureVisible($idListview, $i, 0)
-					Sleep(100)
-
-				EndIf
-
-				_GUICtrlListView_SetItemChecked($idListview, $i, False)
+			MemoWrite(@CRLF & "Starting restore process...")
+			ProgressWrite(0)
+			Local $iCheckedItems = 0
+			For $x = 0 To _GUICtrlListView_GetItemCount($g_idListview) - 1
+			If _GUICtrlListView_GetItemChecked($g_idListview, $x) Then $iCheckedItems += 1
 			Next
 
+			Local $ItemFromList
+			Local $iStep = 0
+			Local $iProgress = 0
+			If $iCheckedItems > 0 Then $iStep = 100 / $iCheckedItems
+
+			For $i = 0 To _GUICtrlListView_GetItemCount($g_idListview) - 1
+			Sleep(1)
+			If _GUICtrlListView_GetItemChecked($g_idListview, $i) Then
+
+			_GUICtrlListView_SetItemSelected($g_idListview, $i, True, False)
+
+			$ItemFromList = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+
+			RestoreFile($ItemFromList)
+
+			$iProgress += $iStep
+			ProgressWrite($iProgress)
+			Sleep(100)
+
+			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $ItemFromList & @CRLF & "---" & @CRLF & "Restoring original file...")
+
+			Sleep(100)
+
+			_GUICtrlListView_EnsureVisible($g_idListview, $i, False)
+			Sleep(100)
+
+			EndIf
+
+			_GUICtrlListView_SetItemChecked($g_idListview, $i, False)
+
+			Next
+			ProgressWrite(100)
+			MemoWrite(@CRLF & "Restore process completed.")
+			Sleep(100)
+			ProgressWrite(0)
+
 			_GUICtrlListView_DeleteAllItems($g_idListview)
-			_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
+			UpdateUIState()
+			_GUICtrlListView_SetExtendedListViewStyle($g_idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
 
-			_GUICtrlListView_RemoveAllGroups($idListview)
-			_GUICtrlListView_InsertGroup($idListview, -1, 1, "", 1)    ; Group 1
-			_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+			_GUICtrlListView_RemoveAllGroups($g_idListview)
+			_GUICtrlListView_InsertGroup($g_idListview, -1, 1, "")
+			_GUICtrlListView_SetGroupInfo($g_idListview, 1, "Restore Results", 1, 0)
 
-			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "waiting for user action")
+			MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Ready for next action")
 			GUICtrlSetState($idListview, 64)
 			GUICtrlSetState($idButtonCustomFolder, 64)
 			GUICtrlSetState($idBtnRestore, 128)
 			GUICtrlSetState($idBtnCure, 128)
 			GUICtrlSetState($idButtonSearch, 64)
-			GUICtrlSetState($idButtonSearch, 256)     ; Set focus
+			GUICtrlSetState($idButtonSearch, 256)     
 			GUICtrlSetState($idBtnUpdateHosts, 64)
 			GUICtrlSetState($idBtnCleanHosts, 64)
 			GUICtrlSetState($idBtnEditHosts, 64)
@@ -560,9 +1034,15 @@ While 1
 			GUICtrlSetState($idBtnHostsInfo, 64)
 			GUICtrlSetState($idBtnRuntimeInfo, 64)
 			GUICtrlSetState($idBtnWintrustInfo, 64)
-			FillListViewWithInfo()
-
+			GUICtrlSetState($idFindACC, 64)
+			GUICtrlSetState($idEnableMD5, 64)
+			GUICtrlSetState($idOnlyAFolders, 64)
+			GUICtrlSetState($idGood1, 64)
+			GUICtrlSetState($idShowBetaApps, 64)
+			ResetMainListView()
+			_GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
 			ToggleLog(1)
+			GUICtrlSetState($hLogTab, $GUI_SHOW)
 
 		Case $idMsg = $idBtnCopyLog
 			SendToClipBoard()
@@ -573,6 +1053,8 @@ While 1
 			Else
 				$bFindACC = 0
 			EndIf
+			CheckOptionsChanged()
+			UpdateUIState()
 
 		Case $idMsg = $idEnableMD5
 			If _IsChecked($idEnableMD5) Then
@@ -580,6 +1062,8 @@ While 1
 			Else
 				$bEnableMD5 = 0
 			EndIf
+			CheckOptionsChanged()
+			UpdateUIState()
 
 		Case $idMsg = $idOnlyAFolders
 			If _IsChecked($idOnlyAFolders) Then
@@ -587,9 +1071,99 @@ While 1
 			Else
 				$bOnlyAFolders = 0
 			EndIf
+			CheckOptionsChanged()
+			UpdateUIState()
+
+		Case $idMsg = $idGood1
+			If _IsChecked($idGood1) Then
+				$EnableGood1 = 1
+			Else
+				$EnableGood1 = 0
+			EndIf
+			IniWrite($sINIPath, "Options", "EnableGood1", $EnableGood1)
+			CheckOptionsChanged()
+			UpdateUIState()
+
+			Local $aChecked[0]
+			Local $iItemCount = _GUICtrlListView_GetItemCount($g_idListview)
+			For $i = 0 To $iItemCount - 1
+			If _GUICtrlListView_GetItemChecked($g_idListview, $i) Then
+			_ArrayAdd($aChecked, _GUICtrlListView_GetItemText($g_idListview, $i, 1))
+			EndIf
+			Next
+
+			_GUICtrlListView_BeginUpdate($g_idListview)
+			FillListViewWithFiles()
+			_GUICtrlListView_EndUpdate($g_idListview)
+
+			_RestoreCheckedItems($aChecked)
+
+		Case $idMsg = $idShowBetaApps
+			If _IsChecked($idShowBetaApps) Then
+				$bShowBetaApps = 1
+			Else
+				$bShowBetaApps = 0
+			EndIf
+			CheckOptionsChanged()
+			UpdateUIState()
+
+			Local $aChecked[0]
+			Local $iItemCount = _GUICtrlListView_GetItemCount($g_idListview)
+			For $i = 0 To $iItemCount - 1
+			If _GUICtrlListView_GetItemChecked($g_idListview, $i) Then
+			_ArrayAdd($aChecked, _GUICtrlListView_GetItemText($g_idListview, $i, 1))
+			EndIf
+			Next
+
+			Local $iTopIndex = _GUICtrlListView_GetTopIndex($g_idListview)
+			Local $iGroupCount = _GUICtrlListView_GetGroupCount($g_idListview)
+			Local $aGroupState[0]
+
+			If $iGroupCount > 0 Then
+			ReDim $aGroupState[$iGroupCount]
+			For $g = 0 To $iGroupCount - 1
+			Local $tGroup = _GUICtrlListView_GetGroupInfo($g_idListview, $g)
+			$aGroupState[$g] = BitAND(DllStructGetData($tGroup, "State"), $LVGS_COLLAPSED)
+			Next
+			EndIf
+
+			_GUICtrlListView_BeginUpdate($g_idListview)
+			FillListViewWithFiles()
+			_GUICtrlListView_EndUpdate($g_idListview)
+
+			_RestoreCheckedItems($aChecked)
+			_GUICtrlListView_EnsureVisible($g_idListview, $iTopIndex, False)
+
+			Local $iNewGroupCount = _GUICtrlListView_GetGroupCount($g_idListview)
+			If $iNewGroupCount > 0 Then
+			For $g = 0 To $iNewGroupCount - 1
+			If $g < UBound($aGroupState) And $aGroupState[$g] <> 0 Then
+			_GUICtrlListView_SetGroupInfo($g_idListview, $g, "", BitOR($LVGS_COLLAPSIBLE, $LVGS_COLLAPSED))
+			EndIf
+			Next
+			EndIf
 
 		Case $idMsg = $idBtnSaveOptions
+			Local $aChecked[0]
+			Local $iItemCount = _GUICtrlListView_GetItemCount($g_idListview)
+ 			For $i = 0 To $iItemCount - 1
+			If _GUICtrlListView_GetItemChecked($g_idListview, $i) Then
+ 			_ArrayAdd($aChecked, _GUICtrlListView_GetItemText($g_idListview, $i, 1))
+			EndIf
+			Next
+
 			SaveOptionsToConfig()
+			$g_OrigFindACC = $bFindACC
+			$g_OrigEnableMD5 = $bEnableMD5
+			$g_OrigOnlyAFolders = $bOnlyAFolders
+			$g_OrigGood1 = $EnableGood1
+			$g_OrigShowBetaApps = $bShowBetaApps
+			CheckOptionsChanged()
+
+			_GUICtrlListView_BeginUpdate($g_idListview)
+			FillListViewWithFiles()
+			_GUICtrlListView_EndUpdate($g_idListview)
+ 			_RestoreCheckedItems($aChecked)
 
 		Case $idMsg = $idBtnRemoveAGS
 			RemoveAGS()
@@ -622,12 +1196,6 @@ While 1
 		Case $idMsg = $idBtnOpenWF
 			OpenWF()
 
-			;Case $idMsg = $idBtnCleanFirewall
-			;	CleanFirewall()
-
-			;Case $idMsg = $idBtnEnableDisableWF
-			;	EnableDisableWFRules()
-
 		Case $idMsg = $idBtnToggleRuntimeInstaller
 			ToggleLog(0)
 			UnpackRuntimeInstallers()
@@ -640,48 +1208,36 @@ While 1
 			ToggleLog(0)
 			ManageDevOverride()
 
-		Case $idMsg = $idBtnAGSInfo
-			ShowInfoPopup("Removes Genuine Services and related files to remove the 'Genuine Service Alert' popup." & @CRLF & @CRLF & "Removal will ONLY stop popups which say 'Genuine Service Alert' in the popup title bar.")
-
-		Case $idMsg = $idBtnFirewallInfo
-			ShowInfoPopup("Manages Windows Firewall rules to block apps from accessing the internet -- stopping popups. Easily add outbound rules for any installed app, toggle all rules off/on, or delete all rules." & @CRLF & @CRLF & "Some app features may not work when cut from internet.")
-
-		Case $idMsg = $idBtnHostsInfo
-			ShowInfoPopup("Manages hosts file -- specifically targeting domains used for popups. Auto update hosts using the provided list URL (Options), manually edit in Notepad, remove all entries, or restore a backup." & @CRLF & @CRLF & "Hosts must be updated regularly to remain effective.")
-
-		Case $idMsg = $idBtnRuntimeInfo
-			ShowInfoPopup("Select apps may pack the RuntimeInstaller.dll with UPX causing patching to fail. GenP can unpack these files so they can then be patched." & @CRLF & @CRLF & @CRLF & @CRLF & _
-					"UPX 5.0.1, Copyright (C) 1996-2025 Markus Oberhumer, Laszlo Molnar & John Reiser" & @CRLF & _
-					"UPX is distributed under a modified GNU GPL v2. See https://github.com/upx/upx for license and source code.")
-
-		Case $idMsg = $idBtnWintrustInfo
-			ShowInfoPopup("Avoid popups by ' trusting' each app. Uses a modified DLL + registry edit for allowing DLL redirection. Trust/Untrust each app or add/remove the reg key as needed. Reg key is auto-added when trusting apps." & @CRLF & @CRLF & "Shout out Team V.R !")
+		Case $g_idListview
+			UpdateUIState()
 	EndSelect
+	Sleep(10)
 WEnd
 
 Func MainGui()
 	$MyhGUI = GUICreate($g_AppWndTitle, 595, 510, -1, -1, BitOR($WS_MAXIMIZEBOX, $WS_MINIMIZEBOX, $WS_SIZEBOX, $GUI_SS_DEFAULT_GUI))
-	$hTab = GUICtrlCreateTab(0, 1, 597, 510)
+	$hTab = GUICtrlCreateTab(0, 1, 597, 510, $TCS_FIXEDWIDTH)
+	_SendMessage(GUICtrlGetHandle($hTab), 0x1329, 0, 74)
 
 	$hMainTab = GUICtrlCreateTabItem("Main")
 	$idListview = GUICtrlCreateListView("", 10, 35, 575, 355)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$g_idListview = GUICtrlGetHandle($idListview) ; get handle for use in the notify events
-	_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER, $LVS_EX_CHECKBOXES))
+	$g_idListview = GUICtrlGetHandle($idListview)
+	_GUICtrlListView_SetExtendedListViewStyle($g_idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER, $LVS_EX_CHECKBOXES))
 	$iStyles = _WinAPI_GetWindowLong($MyhGUI, $GWL_STYLE)
 	_WinAPI_SetWindowLong($MyhGUI, $GWL_STYLE, BitXOR($iStyles, $WS_SIZEBOX, $WS_MINIMIZEBOX, $WS_MAXIMIZEBOX))
 
-	; Add columns
-	_GUICtrlListView_SetItemCount($idListview, UBound($FilesToPatch))
-	_GUICtrlListView_AddColumn($idListview, "", 20)
-	_GUICtrlListView_AddColumn($idListview, "[Click to expand/collapse all]", 532, 2)
+	_GUICtrlListView_SetItemCount($g_idListview, $g_FilesToPatchCount)
+	_GUICtrlListView_AddColumn($g_idListview, "", 20)
+	_GUICtrlListView_AddColumn($g_idListview, "", 532, 2)
 
-	; Build groups
-	_GUICtrlListView_EnableGroupView($idListview)
-	_GUICtrlListView_InsertGroup($idListview, -1, 1, "", 1) ; Group 1
-	_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+	_GUICtrlListView_EnableGroupView($g_idListview)
+	_GUICtrlListView_InsertGroup($g_idListview, -1, 0, "", 1)
+	_GUICtrlListView_EnableGroupView($g_idListview, False)
 
 	FillListViewWithInfo()
+
+	_RestoreCheckedItems($aChecked)
 
 	$idButtonCustomFolder = GUICtrlCreateButton("Path", 10, 430, 80, 30)
 	GUICtrlSetTip(-1, "Set custom search path")
@@ -700,6 +1256,7 @@ Func MainGui()
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
 	$idBtnCure = GUICtrlCreateButton("Patch", 258, 430, 80, 30)
+	GUICtrlSetFont($idBtnCure, 10, 700)
 	GUICtrlSetState(-1, $GUI_DISABLE)
 	GUICtrlSetTip(-1, "Patch selected file(s)")
 	GUICtrlSetImage(-1, "imageres.dll", -102, 0)
@@ -717,10 +1274,13 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", -113, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$idProgressBar = GUICtrlCreateProgress(10, 397, 575, 25, $PBS_SMOOTHREVERSE)
+	$idProgressBar = GUICtrlCreateProgress(10, 397, 575, 25, $PBS_SMOOTH)
 	GUICtrlSetResizing(-1, $GUI_DOCKVCENTER)
+	GUICtrlSetData($idProgressBar, 0)
+	_WinAPI_SetWindowTheme(GUICtrlGetHandle($idProgressBar), "", "")
+	GUICtrlSetColor($idProgressBar, 0x0078D7)
 
-	$g_idHyperlinkMain = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkMain = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkMain, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkMain, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkMain, $GUI_BKCOLOR_TRANSPARENT)
@@ -730,7 +1290,9 @@ Func MainGui()
 
 	$hOptionsTab = GUICtrlCreateTabItem("Options")
 
-	$idFindACC = GUICtrlCreateCheckbox("Always search for ACC", 10, 50, 300, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+	GUICtrlCreateGroup("Scan Options", 5, 35, 585, 130)
+
+	$idFindACC = GUICtrlCreateCheckbox("Always search for ACC", 15, 55, 300, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
 	If $bFindACC = 1 Then
 		GUICtrlSetState($idFindACC, $GUI_CHECKED)
 	Else
@@ -738,7 +1300,7 @@ Func MainGui()
 	EndIf
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$idEnableMD5 = GUICtrlCreateCheckbox("Enable MD5 Checksum", 10, 90, 300, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+	$idEnableMD5 = GUICtrlCreateCheckbox("Enable MD5 Checksum", 15, 85, 300, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
 	If $bEnableMD5 = 1 Then
 		GUICtrlSetState($idEnableMD5, $GUI_CHECKED)
 	Else
@@ -746,7 +1308,7 @@ Func MainGui()
 	EndIf
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$idOnlyAFolders = GUICtrlCreateCheckbox("Search in default named folders only", 10, 130, 300, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+	$idOnlyAFolders = GUICtrlCreateCheckbox("Search in default named folders only", 15, 115, 300, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
 	If $bOnlyAFolders = 1 Then
 		GUICtrlSetState($idOnlyAFolders, $GUI_CHECKED)
 	Else
@@ -754,16 +1316,49 @@ Func MainGui()
 	EndIf
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$idCustomDomainListLabel = GUICtrlCreateLabel("Hosts List URL:", 10, 180, 100, 20)
-	$idCustomDomainListInput = GUICtrlCreateInput($sCurrentDomainListURL, 90, 175, 490, 20, BitOR($ES_LEFT, $ES_WANTRETURN, $ES_AUTOHSCROLL))
+	GUICtrlCreateGroup("", -99, -99, 1, 1)
+
+	GUICtrlCreateGroup("Patch Options", 5, 175, 585, 100)
+
+	$idGood1 = GUICtrlCreateCheckbox("Enable Good Patch", 15, 195, 300, 25, _
+		BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+
+	If $EnableGood1 = 1 Then
+		GUICtrlSetState($idGood1, $GUI_CHECKED)
+	Else
+		GUICtrlSetState($idGood1, $GUI_UNCHECKED)
+	EndIf
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idShowBetaApps = GUICtrlCreateCheckbox("Show Beta Apps", 15, 225, 300, 25, _
+		BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+
+	If $bShowBetaApps = 1 Then
+		GUICtrlSetState($idShowBetaApps, $GUI_CHECKED)
+	Else
+		GUICtrlSetState($idShowBetaApps, $GUI_UNCHECKED)
+	EndIf
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	GUICtrlCreateGroup("", -99, -99, 1, 1)
+
+	$idCustomDomainListLabel = GUICtrlCreateLabel("Hosts List URL:", 10, 295, 100, 20)
+	$idCustomDomainListInput = GUICtrlCreateInput($sCurrentDomainListURL, 110, 290, 470, 20, BitOR($ES_LEFT, $ES_WANTRETURN, $ES_AUTOHSCROLL))
 	GUICtrlSetLimit($idCustomDomainListInput, 255)
+	GUICtrlSetResizing($idCustomDomainListInput, $GUI_DOCKWIDTH)
+
+	$idOptionsReminder = GUICtrlCreateLabel("Changes will not take effect until saved", 10, 400, 575, 20, $SS_CENTER)
+	GUICtrlSetFont($idOptionsReminder, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($idOptionsReminder, 0x444444)
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
 	$idBtnSaveOptions = GUICtrlCreateButton("Save Options", 247, 430, 100, 30)
 	GUICtrlSetTip(-1, "Save options to config.ini")
 	GUICtrlSetImage(-1, "imageres.dll", 5358, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetState($idBtnSaveOptions, $GUI_DISABLE)
 
-	$g_idHyperlinkOptions = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkOptions = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkOptions, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkOptions, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkOptions, $GUI_BKCOLOR_TRANSPARENT)
@@ -771,95 +1366,175 @@ Func MainGui()
 
 	GUICtrlCreateTabItem("")
 
-	$hPopupTab = GUICtrlCreateTabItem("Pop-up Tools")
+	$hUnpackTab = GUICtrlCreateTabItem("Unpack")
 
-	; --- Genuine Services ---
-	$idBtnAGSInfo = GUICtrlCreateButton("?", 385, 38, 20, 20)
-	GUICtrlSetFont($idBtnAGSInfo, 10, 400, 0, "Arial")
-	GUICtrlSetResizing($idBtnAGSInfo, $GUI_DOCKAUTO)
-	$sRemoveAGSText = "GENUINE SERVICES"
-	$idLabelRemoveAGS = GUICtrlCreateLabel($sRemoveAGSText, 5, 40, 580, 20, $SS_CENTER)
-	GUICtrlSetFont($idLabelRemoveAGS, 10, 700)
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnRemoveAGS = GUICtrlCreateButton("Remove AGS", 225, 65, 140, 30)
-	GUICtrlSetTip(-1, "Remove Genuine Services files/services to remove pop-up")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-
-	; --- Firewall ---
-	$idBtnFirewallInfo = GUICtrlCreateButton("?", 330, 113, 20, 20)
-	GUICtrlSetFont($idBtnFirewallInfo, 10, 400, 0, "Arial")
-	GUICtrlSetResizing($idBtnFirewallInfo, $GUI_DOCKAUTO)
-	$sCleanFirewallText = "FIREWALL"
-	$idLabelCleanFirewall = GUICtrlCreateLabel($sCleanFirewallText, 5, 115, 580, 20, $SS_CENTER)
-	GUICtrlSetFont($idLabelCleanFirewall, 10, 700)
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnCreateFW = GUICtrlCreateButton("Add Rules", 10, 140, 140, 30)
-	GUICtrlSetTip(-1, "Add new firewall rules")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnToggleFW = GUICtrlCreateButton("Toggle Rules", 155, 140, 140, 30)
-	GUICtrlSetTip(-1, "Enable/Disable all GenP firewall rules")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnRemoveFW = GUICtrlCreateButton("Remove Rules", 300, 140, 140, 30)
-	GUICtrlSetTip(-1, "Remove all GenP firewall rules")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnOpenWF = GUICtrlCreateButton("Open Windows Firewall", 445, 140, 140, 30)
-	GUICtrlSetTip(-1, "Open Windows Firewall with Advanced Security console")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-
-	; --- Hosts ---
-	$idBtnHostsInfo = GUICtrlCreateButton("?", 320, 188, 20, 20)
-	GUICtrlSetFont($idBtnHostsInfo, 10, 400, 0, "Arial")
-	GUICtrlSetResizing($idBtnHostsInfo, $GUI_DOCKAUTO)
-	$sEditHostsText = "HOSTS"
-	$idLabelEditHosts = GUICtrlCreateLabel($sEditHostsText, 5, 190, 580, 20, $SS_CENTER)
-	GUICtrlSetFont($idLabelEditHosts, 10, 700)
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnUpdateHosts = GUICtrlCreateButton("Update hosts", 10, 215, 140, 30)
-	GUICtrlSetTip(-1, "Update hosts with domains from hosts list URL")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnEditHosts = GUICtrlCreateButton("Edit hosts", 155, 215, 140, 30)
-	GUICtrlSetTip(-1, "Manually edit hosts in notepad")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnCleanHosts = GUICtrlCreateButton("Clean hosts", 300, 215, 140, 30)
-	GUICtrlSetTip(-1, "Remove hosts added by GenP")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnRestoreHosts = GUICtrlCreateButton("Restore hosts", 445, 215, 140, 30)
-	GUICtrlSetState($idBtnRestoreHosts, $GUI_DISABLE)
-	GUICtrlSetTip(-1, "Restore hosts from hosts.bak")
-	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-
-	; --- Runtime Installer ---
-	$idBtnRuntimeInfo = GUICtrlCreateButton("?", 365, 263, 20, 20)
-	GUICtrlSetFont($idBtnRuntimeInfo, 10, 400, 0, "Arial")
-	GUICtrlSetResizing($idBtnRuntimeInfo, $GUI_DOCKAUTO)
 	$sRuntimeInstallerText = "RUNTIME INSTALLER"
-	$idLabelRuntimeInstaller = GUICtrlCreateLabel($sRuntimeInstallerText, 5, 265, 580, 20, $SS_CENTER)
+	$idLabelRuntimeInstaller = GUICtrlCreateLabel($sRuntimeInstallerText, (595 - 580) / 2, 50, 580, 20, $SS_CENTER)
 	GUICtrlSetFont($idLabelRuntimeInstaller, 10, 700)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnToggleRuntimeInstaller = GUICtrlCreateButton("Unpack", 225, 290, 140, 30)
+
+	$idBtnToggleRuntimeInstaller = GUICtrlCreateButton("Unpack", (595 - 140) / 2, 90, 140, 30)
 	GUICtrlSetTip(-1, "Unpack RuntimeInstaller.dll")
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	; --- WinTrust ---
-	$idBtnWintrustInfo = GUICtrlCreateButton("?", 333, 338, 20, 20)
-	GUICtrlSetFont($idBtnWintrustInfo, 10, 400, 0, "Arial")
-	GUICtrlSetResizing($idBtnWintrustInfo, $GUI_DOCKAUTO)
+	$idLabelInfo = GUICtrlCreateLabel( _
+	    "Some Adobe components, such as RuntimeInstaller.dll, may be compressed using the UPX format." & @CRLF & @CRLF & _
+	    "This compression can interfere with patching and cause unexpected popups." & @CRLF & @CRLF & _
+	    "Unpacking these files allows them to be properly modified so the patch can be applied correctly." & @CRLF & @CRLF & _
+	    "This helps reduce runtime errors, missing functionality, or popups after patching.", _
+	    (595 - 580) / 2, 320, 580, 120, $SS_CENTER)
+	GUICtrlSetFont($idLabelInfo, 9, 400, 0, "Segoe UI")
+	GUICtrlSetResizing($idLabelInfo, $GUI_DOCKAUTO)
+
+	$g_idHyperlinkUnpack = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkUnpack, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkUnpack, 0x000000)
+	GUICtrlSetBkColor($g_idHyperlinkUnpack, $GUI_BKCOLOR_TRANSPARENT)
+	GUICtrlSetCursor($g_idHyperlinkUnpack, 0)
+
+	GUICtrlCreateTabItem("") 
+
+	$hWinTrustTab = GUICtrlCreateTabItem("WinTrust")
+
 	$sWinTrustText = "WINTRUST"
-	$idLabelWinTrust = GUICtrlCreateLabel($sWinTrustText, 5, 340, 580, 20, $SS_CENTER)
+	$idLabelWinTrust = GUICtrlCreateLabel($sWinTrustText, (595 - 580) / 2, 50, 580, 20, $SS_CENTER)
 	GUICtrlSetFont($idLabelWinTrust, 10, 700)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnToggleWinTrust = GUICtrlCreateButton("Toggle WinTrust", 155, 365, 140, 30)
+
+	$idBtnToggleWinTrust = GUICtrlCreateButton("Toggle WinTrust", (595 - 140) / 2, 90, 140, 30)
 	GUICtrlSetTip(-1, "Enable/disable wintrust.dll override")
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
-	$idBtnDevOverride = GUICtrlCreateButton("Toggle Reg Key", 300, 365, 140, 30)
+	GUICtrlSetFont($idBtnToggleWinTrust, 9, 400, 0, "Segoe UI")
+
+	$idBtnDevOverride = GUICtrlCreateButton("Toggle Reg Key", (595 - 140) / 2, 125, 140, 30)
 	GUICtrlSetTip(-1, "Add/remove DevOverrideEnable registry key")
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetFont($idBtnDevOverride, 9, 400, 0, "Segoe UI")
 
-	$g_idHyperlinkPopup = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
-	GUICtrlSetFont($g_idHyperlinkPopup, 9, 400, 0, "Segoe UI")
-	GUICtrlSetColor($g_idHyperlinkPopup, 0x000000)
-	GUICtrlSetBkColor($g_idHyperlinkPopup, $GUI_BKCOLOR_TRANSPARENT)
-	GUICtrlSetCursor($g_idHyperlinkPopup, 0)
+	$idLabelInfo = GUICtrlCreateLabel( _ 
+	    "Reduce popups by trusting applications that use DLL redirection." & @CRLF & @CRLF & _
+	    "This feature manages the required registry entry automatically." & @CRLF & @CRLF & _
+	    "You can trust or untrust applications at any time as needed." & @CRLF & @CRLF & _
+	    "Credit to Team V.R.", _
+	    (595 - 580) / 2, 320, 580, 110, $SS_CENTER)
+	GUICtrlSetFont($idLabelInfo, 9, 400, 0, "Segoe UI")
+	GUICtrlSetResizing($idLabelInfo, $GUI_DOCKAUTO)
+
+	$g_idHyperlinkWinTrust = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkWinTrust, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkWinTrust, 0x000000)
+	GUICtrlSetBkColor($g_idHyperlinkWinTrust, $GUI_BKCOLOR_TRANSPARENT)
+	GUICtrlSetCursor($g_idHyperlinkWinTrust, 0)
+
+	GUICtrlCreateTabItem("") 
+
+	$hHostsTab = GUICtrlCreateTabItem("Hosts")
+
+	$sEditHostsText = "HOSTS"
+	$idLabelEditHosts = GUICtrlCreateLabel($sEditHostsText, (595 - 580) / 2, 50, 580, 20, $SS_CENTER)
+	GUICtrlSetFont($idLabelEditHosts, 10, 700)
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idBtnUpdateHosts = GUICtrlCreateButton("Update hosts", (595 - 140) / 2, 90, 140, 30)
+	GUICtrlSetTip(-1, "Update hosts with domains from hosts list URL")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetFont($idBtnUpdateHosts, 9, 400, 0, "Segoe UI")
+
+	$idBtnEditHosts = GUICtrlCreateButton("Edit hosts", (595 - 140) / 2, 125, 140, 30)
+	GUICtrlSetTip(-1, "Manually edit hosts in notepad")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetFont($idBtnEditHosts, 9, 400, 0, "Segoe UI")
+
+	$idBtnCleanHosts = GUICtrlCreateButton("Clean hosts", (595 - 140) / 2, 160, 140, 30)
+	GUICtrlSetTip(-1, "Remove hosts added by GenP")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetFont($idBtnCleanHosts, 9, 400, 0, "Segoe UI")
+
+	$idBtnRestoreHosts = GUICtrlCreateButton("Restore hosts", (595 - 140) / 2, 195, 140, 30)
+	GUICtrlSetState($idBtnRestoreHosts, $GUI_DISABLE)
+	GUICtrlSetTip(-1, "Restore hosts from hosts.bak")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetFont($idBtnRestoreHosts, 9, 400, 0, "Segoe UI")
+
+	$idLabelInfo = GUICtrlCreateLabel( _ 
+	    "Manage the hosts file to block domains associated with popups." & @CRLF & @CRLF & _
+	    "Update the hosts file automatically from a list URL, edit it manually, or restore a backup." & @CRLF & @CRLF & _
+	    "Keeping the hosts file updated helps maintain protection over time.", _
+	    (595 - 580) / 2, 320, 580, 110, $SS_CENTER)
+	GUICtrlSetFont($idLabelInfo, 9, 400, 0, "Segoe UI")
+	GUICtrlSetResizing($idLabelInfo, $GUI_DOCKAUTO)
+
+	$g_idHyperlinkHosts = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkHosts, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkHosts, 0x000000)
+	GUICtrlSetBkColor($g_idHyperlinkHosts, $GUI_BKCOLOR_TRANSPARENT)
+	GUICtrlSetCursor($g_idHyperlinkHosts, 0)
+
+	GUICtrlCreateTabItem("") 
+
+	$hAGSTab = GUICtrlCreateTabItem("AGS")
+
+	$sRemoveAGSText = "GENUINE SERVICES"
+	$idLabelRemoveAGS = GUICtrlCreateLabel($sRemoveAGSText, (595 - 580) / 2, 50, 580, 20, $SS_CENTER)
+	GUICtrlSetFont($idLabelRemoveAGS, 10, 700)
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idBtnRemoveAGS = GUICtrlCreateButton("Remove AGS", (595 - 140) / 2, 90, 140, 30)
+	GUICtrlSetTip(-1, "Remove Genuine Services files/services to remove popup")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+	GUICtrlSetFont($idBtnRemoveAGS, 9, 400, 0, "Segoe UI")
+
+	$idLabelInfo = GUICtrlCreateLabel( _ 
+	    "Disables the 'Genuine Service Alert' popup by removing the related Genuine Service components." & @CRLF & @CRLF & _
+	    "This only affects alerts with 'Genuine Service Alert' in the window title.", _
+	    (595 - 580) / 2, 320, 580, 80, $SS_CENTER)
+	GUICtrlSetFont($idLabelInfo, 9, 400, 0, "Segoe UI")
+	GUICtrlSetResizing($idLabelInfo, $GUI_DOCKAUTO)
+
+	$g_idHyperlinkAGS = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkAGS, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkAGS, 0x000000)
+	GUICtrlSetBkColor($g_idHyperlinkAGS, $GUI_BKCOLOR_TRANSPARENT)
+	GUICtrlSetCursor($g_idHyperlinkAGS, 0)
+
+	GUICtrlCreateTabItem("") 
+
+	$hFirewallTab = GUICtrlCreateTabItem("Firewall")
+
+	$sCleanFirewallText = "FIREWALL"
+	$idLabelCleanFirewall = GUICtrlCreateLabel($sCleanFirewallText, (595 - 580) / 2, 50, 580, 20, $SS_CENTER)
+	GUICtrlSetFont($idLabelCleanFirewall, 10, 700)
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idBtnCreateFW = GUICtrlCreateButton("Add Rules", (595 - 140) / 2, 90, 140, 30)
+	GUICtrlSetTip(-1, "Add new firewall rules")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idBtnToggleFW = GUICtrlCreateButton("Toggle Rules", (595 - 140) / 2, 125, 140, 30)
+	GUICtrlSetTip(-1, "Enable/Disable all GenP firewall rules")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idBtnRemoveFW = GUICtrlCreateButton("Remove Rules", (595 - 140) / 2, 160, 140, 30)
+	GUICtrlSetTip(-1, "Remove all GenP firewall rules")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idBtnOpenWF = GUICtrlCreateButton("Open Windows Firewall", (595 - 140) / 2, 195, 140, 30)
+	GUICtrlSetTip(-1, "Open Windows Firewall with Advanced Security console")
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idLabelInfo = GUICtrlCreateLabel( _ 
+	    "Manage Windows Firewall rules to block applications from internet access, which may reduce popups." & @CRLF & @CRLF & _
+	    "Add or remove outbound rules, enable or disable them, or delete all rules." & @CRLF & @CRLF & _
+	    "Note: Some application features may not function when internet access is blocked.", _
+	    (595 - 580) / 2, 320, 580, 110, $SS_CENTER)
+	GUICtrlSetFont($idLabelInfo, 9, 400, 0, "Segoe UI")
+	GUICtrlSetResizing($idLabelInfo, $GUI_DOCKAUTO)
+
+	$g_idHyperlinkFirewall = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkFirewall, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkFirewall, 0x000000)
+	GUICtrlSetBkColor($g_idHyperlinkFirewall, $GUI_BKCOLOR_TRANSPARENT)
+	GUICtrlSetCursor($g_idHyperlinkFirewall, 0)
 
 	GUICtrlCreateTabItem("")
 
@@ -877,7 +1552,7 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", -77, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkLog = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkLog = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkLog, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkLog, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkLog, $GUI_BKCOLOR_TRANSPARENT)
@@ -885,136 +1560,398 @@ Func MainGui()
 
 	GUICtrlCreateTabItem("")
 
-	MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Waiting for user action.")
+	MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Ready for next action")
 
 	GUICtrlSetState($idButtonSearch, 256) ; Set focus
 	GUISetState(@SW_SHOW)
-
+	CheckOptionsChanged()
 	GUIRegisterMsg($WM_COMMAND, "hL_WM_COMMAND")
 	GUIRegisterMsg($WM_NOTIFY, "WM_NOTIFY")
 EndFunc   ;==>MainGui
 
 Func RecursiveFileSearch($INSTARTDIR, $DEPTH, $FileCount)
-	_GUICtrlListView_SetItemText($idListview, 1, "Searching for files.", 1)
+	Local $HSEARCH
+	If $fInterrupt Then Return
 	Local $RecursiveFileSearch_MaxDeep = 8
 	If $DEPTH > $RecursiveFileSearch_MaxDeep Then Return
 
 	Local $STARTDIR = $INSTARTDIR & "\"
 	$FileSearchedCount += 1
 
-	Local $HSEARCH = FileFindFirstFile($STARTDIR & "*.*")
+	$HSEARCH = FileFindFirstFile($STARTDIR & "*.*")
 	If @error Then Return
 
 	Local $NEXT, $IPATH, $isDir
 
-	While $fInterrupt = 0
+	While 1
+		If $fInterrupt Then
+			FileClose($HSEARCH)
+ 			Return
+		EndIf
+		
 		$NEXT = FileFindNextFile($HSEARCH)
+		If @error Then ExitLoop
+		If $NEXT = "." Or $NEXT = ".." Then ContinueLoop
 		$FileSearchedCount += 1
 
-		If @error Then ExitLoop
-		$isDir = StringInStr(FileGetAttrib($STARTDIR & $NEXT), "D")
+		; Animate "Please wait..." every 25 files
+		If Mod($FileSearchedCount, 25) = 0 Then
+			If TimerDiff($g_LastAnimUpdate) > 350 Then
+				$g_LastAnimUpdate = TimerInit()
+				$g_WaitAnim += 1
+				If $g_WaitAnim > 3 Then $g_WaitAnim = 0
+				Local $dots = StringRepeat(".", $g_WaitAnim)
 
+				_GUICtrlListView_SetItemText($g_idListview, 4, "Applications found: " & $g_AppCount, 1)
+				_GUICtrlListView_SetItemText($g_idListview, 5, "Files scanned: " & _FormatNumber($FileSearchedCount), 1)
+				_GUICtrlListView_SetItemText($g_idListview, 6, "Files eligible: " & _FormatNumber($g_FilesToPatchCount), 1)
+				_GUICtrlListView_SetItemText($g_idListview, 7, "Please wait" & $dots, 1)
+				Sleep(1)
+			EndIf
+		EndIf
+
+		$isDir = StringInStr(FileGetAttrib($STARTDIR & $NEXT), "D")
 		If $isDir Then
-			Local $targetDepth
-			$targetDepth = RecursiveFileSearch($STARTDIR & $NEXT, $DEPTH + 1, $FileCount)
+			If $fInterrupt Then ExitLoop
+			RecursiveFileSearch($STARTDIR & $NEXT, $DEPTH + 1, $FileCount)
+			If $fInterrupt Then ExitLoop
 		Else
 			$IPATH = $STARTDIR & $NEXT
+
+			; Track .bak files and mark as patched
+			If StringRight(StringLower($IPATH), 4) = ".bak" Then
+			_SetFilePatchState($IPATH, $PATCH_STATE_PATCHED) ; Mark the file as patched
+			If _ArraySearch($FilesToRestore, $IPATH) = -1 Then
+			_ArrayAdd($FilesToRestore, $IPATH)
+			EndIf
+			ContinueLoop
+			EndIf
+
 			Local $FileNameCropped, $PathToCheck
-			If (IsArray($TargetFileList)) Then
+			If IsArray($TargetFileList) Then
 				For $FileTarget In $TargetFileList
+					If $fInterrupt Then ExitLoop
+					$PathToCheck = ""
 					If StringInStr($FileTarget, "$") Then
 						$FileTarget = StringSplit($FileTarget, "$", $STR_ENTIRESPLIT)
 						$PathToCheck = $FileTarget[2]
 						$FileTarget = $FileTarget[1]
 					EndIf
-					$FileNameCropped = StringSplit(StringLower($IPATH), StringLower($FileTarget), $STR_ENTIRESPLIT)
-					If @error <> 1 Then
-						If Not StringInStr($IPATH, ".bak") And Not StringInStr(StringLower($IPATH), "wintrust") Then
+
+					If StringLower($NEXT) = StringLower($FileTarget) Then
+						If Not StringInStr(StringLower($IPATH), "wintrust") Then
 							If (StringInStr($IPATH, "Adobe") Or StringInStr($IPATH, "Acrobat")) Or $bOnlyAFolders = 0 Then
-								If $PathToCheck = "" Then
-									_ArrayAdd($FilesToPatch, $IPATH)
-								Else
-									If StringInStr($IPATH, $PathToCheck) Then
-										_ArrayAdd($FilesToPatch, $IPATH)
+								
+								Local $bAddFile = False
+								If $PathToCheck = "" Or StringInStr($IPATH, $PathToCheck) Then $bAddFile = True
+
+								; Keep  good patch  files in memory
+								Local $requiresGood1 = False
+								If StringInStr($IPATH, "dynamic-torqnative.dll") Or _
+								   StringInStr($IPATH, "dynamic-torqnative.dll.i64") Or _
+								   StringInStr($IPATH, "lec.dll") Then $requiresGood1 = True
+
+								If $bAddFile Then
+									If $g_FilesToPatchCount >= $g_FilesToPatchCapacity Then
+										$g_FilesToPatchCapacity += 100
+ 										ReDim $FilesToPatch[$g_FilesToPatchCapacity][5]
 									EndIf
+
+									$FilesToPatch[$g_FilesToPatchCount][0] = $IPATH
+									$FilesToPatch[$g_FilesToPatchCount][1] = StringInStr($IPATH, "(Beta)", 2) > 0
+									$FilesToPatch[$g_FilesToPatchCount][2] = StringInStr($IPATH, "Common Files\Adobe") > 0
+
+									; Determine GUI folder name
+									Local $groupName = "Unknown"
+									Local $isBeta = StringInStr($IPATH, "(Beta)", 2) > 0
+
+									If StringInStr($IPATH, "Common Files\Adobe\Adobe Desktop Common") Then
+										$groupName = "Creative Cloud"
+									Else
+										Local $parts = StringSplit($IPATH, "\")
+										For $j = 1 To $parts[0]
+											If StringLower($parts[$j]) = "adobe" And $j+1 <= $parts[0] Then
+												$groupName = StringRegExpReplace($parts[$j+1], "^Adobe\s+", "")
+												If $isBeta And Not StringInStr($groupName, "(Beta)") Then $groupName &= " (Beta)"
+												ExitLoop
+											EndIf
+										Next
+									EndIf
+
+									$FilesToPatch[$g_FilesToPatchCount][3] = $groupName
+									$FilesToPatch[$g_FilesToPatchCount][4] = $requiresGood1
+
+									If Not _AppAlreadySeen($groupName) Then $g_AppCount += 1
+
+									; Update GUI only on folder change
+									If $groupName <> $g_LastAppFolder Then
+										$g_LastAppFolder = $groupName
+										_GUICtrlListView_SetItemText($g_idListview, 3, $groupName, 1)
+									EndIf
+
+									$g_FilesToPatchCount += 1
 								EndIf
 							EndIf
-						ElseIf StringInStr($IPATH, ".bak") Then
-							_ArrayAdd($FilesToRestore, $IPATH)
 						EndIf
 					EndIf
-					$PathToCheck = ""
 				Next
 			EndIf
 		EndIf
 	WEnd
 
-	; Lazy screen updates
+	; Log progress occasionally
 	If 1 = Random(0, 10, 1) Then
-		MemoWrite(@CRLF & "Searching in " & $FileCount & " files" & @TAB & @TAB & "Found : " & UBound($FilesToPatch) & @CRLF & _
+		MemoWrite(@CRLF & "Searching in " & $FileCount & " files" & @TAB & "Found: " & $g_FilesToPatchCount & @CRLF & _
 				"---" & @CRLF & _
-				"Level: " & $DEPTH & " Time elapsed : " & Round(TimerDiff($timestamp) / 1000, 0) & " second(s)" & @TAB & @TAB & "Excluded because of *.bak: " & UBound($FilesToRestore) & @CRLF & _
+				"Level: " & $DEPTH & " Time elapsed: " & Round(TimerDiff($timestamp)/1000,0) & " sec" & @TAB & "Excluded *.bak: " & UBound($FilesToRestore) & @CRLF & _
 				"---" & @CRLF & _
-				$INSTARTDIR _
-				)
+				$INSTARTDIR)
 		ProgressWrite($ProgressFileCountScale * $FileSearchedCount)
 	EndIf
 
 	FileClose($HSEARCH)
-EndFunc   ;==>RecursiveFileSearch
+EndFunc
 
 Func FillListViewWithInfo()
 
-	_GUICtrlListView_DeleteAllItems($g_idListview)
-	_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
+    _GUICtrlListView_DeleteAllItems($g_idListview)
+    _GUICtrlListView_RemoveAllGroups($g_idListview)
 
-	_Expand_All_Click()
-	_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+    _GUICtrlListView_InsertGroup($g_idListview, -1, 1, "", 1)
+    _GUICtrlListView_SetGroupInfo($g_idListview, 1, "Detected Applications", 1, 0)
 
-	; Add items
-	For $i = 0 To 5
-		_GUICtrlListView_AddItem($idListview, "", $i)
-		_GUICtrlListView_SetItemGroupID($idListview, $i, 1)
-	Next
+    _GUICtrlListView_SetExtendedListViewStyle($g_idListview, _
+       BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_DOUBLEBUFFER))
 
-	_GUICtrlListView_AddSubItem($idListview, 0, "", 1)
-	_GUICtrlListView_AddSubItem($idListview, 1, "GenP", 1)
-	_GUICtrlListView_AddSubItem($idListview, 2, "Originally created by uncia", 1)
-	_GUICtrlListView_AddSubItem($idListview, 3, '---------------', 1)
-	_GUICtrlListView_AddSubItem($idListview, 4, "Press 'Search' to find installed products; 'Patch' to patch selected products/files", 1)
-	_GUICtrlListView_AddSubItem($idListview, 5, "Current search path: " & $MyDefPath & " -- press 'Path' to change", 1)
+    Local $sTitle = "GenP v4.0.0"
 
-	$fFilesListed = 0
+    Local $sOptionsLine = ""
 
-EndFunc   ;==>FillListViewWithInfo
+    If Number($EnableGood1) Then
+        $sOptionsLine &= "Good1 patch enabled"
+    EndIf
+
+    If Number($bShowBetaApps) Then
+        If $sOptionsLine <> "" Then $sOptionsLine &= " / "
+        $sOptionsLine &= "Beta apps included"
+    EndIf
+
+    Local $iTotalRows = 13
+    If $sOptionsLine <> "" Then $iTotalRows += 1
+
+    For $i = 0 To $iTotalRows - 1
+        Local $idx = _GUICtrlListView_AddItem($g_idListview, "", $i)
+        _GUICtrlListView_SetItemGroupID($g_idListview, $idx, 1)
+    Next
+
+    _GUICtrlListView_AddSubItem($g_idListview, 0, "", 1)
+    _GUICtrlListView_AddSubItem($g_idListview, 1, "GenP", 1)
+    _GUICtrlListView_AddSubItem($g_idListview, 2, "Originally created by uncia", 1)
+    _GUICtrlListView_AddSubItem($g_idListview, 3, "", 1)
+    _GUICtrlListView_AddSubItem($g_idListview, 4, "--------------------", 1)
+    _GUICtrlListView_AddSubItem($g_idListview, 5, $sTitle, 1)
+
+    Local $line = 6
+
+    If $sOptionsLine <> "" Then
+        _GUICtrlListView_AddSubItem($g_idListview, $line, $sOptionsLine, 1)
+        $line += 1
+    EndIf
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, "--------------------", 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, "", 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, _
+        "Current search path:", 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, _
+        $MyDefPath, 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, "", 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, _
+        "Press 'Path' to change the search location", 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, _
+        "Press 'Search' to scan for installed applications", 1)
+    $line += 1
+
+    _GUICtrlListView_AddSubItem($g_idListview, $line, _
+        "Press 'Patch' to apply patches to selected files", 1)
+    $line += 1
+
+    If $bShowBetaApps = 1 Then
+        For $i = 0 To UBound($BetaApps) - 1
+            _GUICtrlListView_AddSubItem($g_idListview, $line, $BetaApps[$i] & " (Beta)", 1)
+            $line += 1
+        Next
+    EndIf
+
+    $fFilesListed = 0
+    UpdateUIState()
+
+EndFunc
+
+Func _GetCheckedItems()
+    Local $aChecked[0]
+    Local $iCount = _GUICtrlListView_GetItemCount($g_idListview)
+
+    For $i = 0 To $iCount - 1
+        If _GUICtrlListView_GetItemChecked($g_idListview, $i) Then
+            _ArrayAdd($aChecked, _
+                _GUICtrlListView_GetItemText($g_idListview, $i, 0)) ; column 0 = ID/path
+        EndIf
+    Next
+
+    Return $aChecked
+EndFunc
+
+Func _RestoreCheckedItems(ByRef $aChecked)
+    If UBound($aChecked) = 0 Then Return
+
+    Local $iCount = _GUICtrlListView_GetItemCount($g_idListview)
+
+    For $i = 0 To $iCount - 1
+        Local $sText = _GUICtrlListView_GetItemText($g_idListview, $i, 0)
+
+        For $j = 0 To UBound($aChecked) - 1
+            If $sText = $aChecked[$j] Then
+                _GUICtrlListView_SetItemChecked($g_idListview, $i, True)
+                ExitLoop
+            EndIf
+        Next
+    Next
+EndFunc
+
+; =========================================================
+; UI rebuild controller
+; Do not call filtering or ListView manipulation elsewhere.
+; Scan -> Data -> Filter -> Build UI pipeline only.
+; =========================================================
 
 Func FillListViewWithFiles()
 
-	_GUICtrlListView_DeleteAllItems($g_idListview)
-	_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER, $LVS_EX_CHECKBOXES))
+    If Not $fFilesListed And $g_FilesToPatchCount <= 0 Then Return
+    If $g_FilesToPatchCount <= 0 Or Not IsArray($FilesToPatch) Then Return
 
-	If UBound($FilesToPatch) > 0 Then
-		Global $aItems[UBound($FilesToPatch)][2]
-		For $i = 0 To UBound($aItems) - 1
-			$aItems[$i][0] = $i
-			$aItems[$i][1] = $FilesToPatch[$i][0]
+    Local $aFiltered = _GetFilteredFiles()
 
-		Next
-		_GUICtrlListView_AddArray($idListview, $aItems)
+    _BuildListView($aFiltered)
+    
+    _GUICtrlListView_SetColumn($g_idListview, 1, "Collapse All", 532)
 
-		MemoWrite(@CRLF & UBound($FilesToPatch) & " File(s) were found in " & Round(TimerDiff($timestamp) / 1000, 0) & " second(s) at:" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Press the 'Patch Files'")
-		LogWrite(1, UBound($FilesToPatch) & " File(s) were found in " & Round(TimerDiff($timestamp) / 1000, 0) & " second(s)" & @CRLF)
-		;_ArrayDisplay($FilesToPatch)
-		$fFilesListed = 1
-	Else
-		MemoWrite(@CRLF & "Nothing was found in" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "waiting for user action")
-		LogWrite(1, "Nothing was found in " & $MyDefPath)
-		$fFilesListed = 0
-	EndIf
+    _GUICtrlListView_EnableGroupView($g_idListview, True)
+    UpdateUIState()
 
-EndFunc   ;==>FillListViewWithFiles
+EndFunc
 
-; Write a line to the memo control
+Func _GetFilteredFiles()
+
+    Local $aTemp[0][5]
+    Local $count = 0
+
+    Local $isScanningBetaRoot = (StringInStr($MyDefPath, "(Beta)", 2) > 0)
+
+    For $i = 0 To $g_FilesToPatchCount - 1
+        If $i >= UBound($FilesToPatch) Then ExitLoop
+
+        If Not $isScanningBetaRoot And $bShowBetaApps = 0 And $FilesToPatch[$i][1] Then ContinueLoop
+        If $bFindACC = 0 And $FilesToPatch[$i][2] Then ContinueLoop
+        If Not $EnableGood1 And $FilesToPatch[$i][4] Then ContinueLoop
+
+        ReDim $aTemp[$count + 1][5]
+
+        $aTemp[$count][0] = $FilesToPatch[$i][0]
+        $aTemp[$count][1] = $FilesToPatch[$i][1]
+        $aTemp[$count][2] = $FilesToPatch[$i][2]
+        $aTemp[$count][3] = $FilesToPatch[$i][3]
+        $aTemp[$count][4] = $FilesToPatch[$i][4]
+
+        $count += 1
+    Next
+
+    Return $aTemp
+
+EndFunc
+
+Func _BuildListView(ByRef $aFiles)
+    If Not IsArray($aFiles) Then Return
+    If UBound($aFiles) = 0 Then Return
+    If $g_idListview = 0 Then Return
+    If Not WinExists($hGUI) Then Return
+    If $g_FilesToPatchCount <= 0 Then Return
+    Local $allChecked = True
+    Local $checked = ObjCreate("Scripting.Dictionary")
+
+    Local $oldCount = _GUICtrlListView_GetItemCount($g_idListview)
+    For $i = 0 To $oldCount - 1
+        Local $path = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+        If Not $checked.Exists($path) Then
+            $checked.Add($path, _GUICtrlListView_GetItemChecked($g_idListview, $i))
+        EndIf
+    Next
+
+    _GUICtrlListView_DeleteAllItems($g_idListview)
+    _GUICtrlListView_RemoveAllGroups($g_idListview)
+
+    _GUICtrlListView_SetExtendedListViewStyle($g_idListview, _
+        BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, _
+              $LVS_EX_DOUBLEBUFFER, $LVS_EX_CHECKBOXES))
+
+    Local $groupID = 0
+    Local $iIndex = 0
+    Local $groupMap = ObjCreate("Scripting.Dictionary")
+
+    For $i = 0 To UBound($aFiles) - 1
+
+        Local $filePath = $aFiles[$i][0]
+        Local $groupName = $aFiles[$i][3]
+        If $groupName = "" Then ContinueLoop
+
+        If Not $groupMap.Exists($groupName) Then
+            $groupID += 1
+            $groupMap.Add($groupName, $groupID)
+            _GUICtrlListView_InsertGroup($g_idListview, -1, $groupID, "", 1)
+            _GUICtrlListView_SetGroupInfo($g_idListview, $groupID, $groupName, 1, $LVGS_COLLAPSIBLE)
+        EndIf
+
+        Local $thisGroupID = $groupMap.Item($groupName)
+        Local $idx = _GUICtrlListView_AddItem($g_idListview, $iIndex)
+        _GUICtrlListView_AddSubItem($g_idListview, $idx, $filePath, 1)
+        _GUICtrlListView_SetItemGroupID($g_idListview, $idx, $thisGroupID)
+        If FileExists($filePath & ".bak") Then
+        _GUICtrlListView_SetItemParam($g_idListview, $idx, $PATCH_STATE_PATCHED)
+        Else
+        _GUICtrlListView_SetItemParam($g_idListview, $idx, $PATCH_STATE_UNPATCHED)
+        EndIf
+        If $checked.Exists($filePath) Then
+            _GUICtrlListView_SetItemChecked($g_idListview, $idx, $checked.Item($filePath))
+        ElseIf $allChecked Then
+            _GUICtrlListView_SetItemChecked($g_idListview, $idx, True)
+        If FileExists($filePath & ".bak") Then
+            _GUICtrlListView_SetItemParam($g_idListview, $idx, $PATCH_STATE_PATCHED)
+            _GUICtrlListView_SetItemText($g_idListview, $idx, $STATE_PATCHED_TEXT, 2)
+        Else
+            _GUICtrlListView_SetItemParam($g_idListview, $idx, $PATCH_STATE_UNPATCHED)
+            _GUICtrlListView_SetItemText($g_idListview, $idx, $STATE_UNPATCHED_TEXT, 2)
+        EndIf
+        EndIf
+
+        $iIndex += 1
+    Next
+
+    $fFilesListed = ($iIndex > 0)
+    UpdateUIState()
+
+EndFunc
+
 Func MemoWrite($sMessage)
 	GUICtrlSetData($idMemo, $sMessage)
 EndFunc   ;==>MemoWrite
@@ -1053,7 +1990,6 @@ Func GUICtrlSetDataEx($hWnd, $sText, $bTS)
 	DllCall("user32.dll", "lresult", "SendMessageW", "hwnd", $hWnd, "uint", 0xC2, "wparam", True, "wstr", $iData) ; $EM_REPLACESEL
 EndFunc   ;==>GUICtrlSetDataEx
 
-; Send a message to the Progress control
 Func ProgressWrite($msg_Progress)
 	;_SendMessage($hWnd_Progress, $PBM_SETPOS, $msg_Progress)
 	GUICtrlSetData($idProgressBar, $msg_Progress)
@@ -1061,46 +1997,50 @@ EndFunc   ;==>ProgressWrite
 
 
 Func MyFileOpenDialog()
-	; Create a constant variable in Local scope of the message to display in FileOpenDialog.
 	Local Const $sMessage = "Select a Path"
 
-	; Display an open dialog to select a file.
 	Local $MyTempPath = FileSelectFolder($sMessage, $MyDefPath, 0, $MyDefPath, $MyhGUI)
 
 
 	If @error Then
-		; Display the error message.
 		;MsgBox($MB_SYSTEMMODAL, "", "No folder was selected.")
-		MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "waiting for user action")
+		MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Ready for next action")
 
 	Else
 		GUICtrlSetState($idBtnCure, 128)
-		$MyDefPath = $MyTempPath
+		$MyDefPath = StringRegExpReplace($MyTempPath, "\\+$", "")
 		IniWrite($sINIPath, "Default", "Path", $MyDefPath)
 		_GUICtrlListView_DeleteAllItems($g_idListview)
-		_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_GRIDLINES, $LVS_EX_FULLROWSELECT, $LVS_EX_SUBITEMIMAGES))
-		_GUICtrlListView_AddItem($idListview, "", 0)
-		_GUICtrlListView_AddItem($idListview, "", 1)
-		_GUICtrlListView_AddItem($idListview, "", 2)
-		_GUICtrlListView_AddItem($idListview, "", 3)
-		_GUICtrlListView_AddItem($idListview, "", 4)
-		_GUICtrlListView_AddItem($idListview, "", 5)
-		_GUICtrlListView_AddItem($idListview, "", 6)
-		_GUICtrlListView_AddSubItem($idListview, 0, "", 1)
-		_GUICtrlListView_AddSubItem($idListview, 1, "Path:", 1)
-		_GUICtrlListView_AddSubItem($idListview, 2, " " & $MyDefPath, 1)
-		_GUICtrlListView_AddSubItem($idListview, 3, "Step 1:", 1)
-		_GUICtrlListView_AddSubItem($idListview, 4, " Press 'Search' - wait until search completes", 1)
-		_GUICtrlListView_AddSubItem($idListview, 5, "Step 2:", 1)
-		_GUICtrlListView_AddSubItem($idListview, 6, " Press 'Patch' - wait until patching completes", 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 0, 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 1, 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 2, 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 3, 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 4, 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 5, 1)
-		_GUICtrlListView_SetItemGroupID($idListview, 6, 1)
-		_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+		_GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
+		_GUICtrlListView_SetExtendedListViewStyle($g_idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_DOUBLEBUFFER))
+		_GUICtrlListView_AddItem($g_idListview, "", 0)
+		_GUICtrlListView_AddItem($g_idListview, "", 1)
+		_GUICtrlListView_AddItem($g_idListview, "", 2)
+		_GUICtrlListView_AddItem($g_idListview, "", 3)
+		_GUICtrlListView_AddItem($g_idListview, "", 4)
+		_GUICtrlListView_AddItem($g_idListview, "", 5)
+		_GUICtrlListView_AddItem($g_idListview, "", 6)
+		_GUICtrlListView_AddItem($g_idListview, "", 7)
+		_GUICtrlListView_AddItem($g_idListview, "", 8)
+		_GUICtrlListView_AddSubItem($g_idListview, 0, "", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 1, "Path:", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 2, " " & $MyDefPath, 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 3, "", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 4, "Step 1:", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 5, "Press 'Search' and wait for completion", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 6, "", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 7, "Step 2:", 1)
+		_GUICtrlListView_AddSubItem($g_idListview, 8, "Press 'Patch' and wait for completion", 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 0, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 1, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 2, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 3, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 4, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 5, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 6, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 7, 1)
+		_GUICtrlListView_SetItemGroupID($g_idListview, 8, 1)
+		_GUICtrlListView_SetGroupInfo($g_idListview, 1, "Next Steps", 1)
 
 		MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Press the Search button")
 		; Display the selected folder.
@@ -1126,9 +2066,9 @@ Func MyFileOpenDialog()
 		$fFilesListed = 0
 
 	EndIf
+    UpdateUIState()
 
 EndFunc   ;==>MyFileOpenDialog
-
 
 Func _ProcessCloseEx($sName)
 	Local $iPID = Run("TASKKILL /F /T /IM " & $sName, @TempDir, @SW_HIDE)
@@ -1138,8 +2078,8 @@ EndFunc   ;==>_ProcessCloseEx
 
 Func MyGlobalPatternSearch($MyFileToParse)
 	;ConsoleWrite($MyFileToParse & @CRLF)
-	$aInHexArray = $aNullArray   ; Nullifay Array that will contain Hex later
-	$aOutHexGlobalArray = $aNullArray     ; Nullifay Array that will contain Hex later
+	$aInHexArray = $aNullArray   
+	$aOutHexGlobalArray = $aNullArray     
 
 	ProgressWrite(0)
 	$MyRegExpGlobalPatternSearchCount = 0
@@ -1187,7 +2127,9 @@ EndFunc   ;==>MyGlobalPatternSearch
 
 Func ExecuteSearchPatterns($FileName, $DefaultPatterns, $MyFileToParse)
 
-	Local $aPatterns, $sPattern, $sData, $aArray, $sSearch, $sReplace, $iPatternLength
+	Local $aPatterns, $sPattern, $sData, $aArray
+	Local $sSearch, $sReplace, $iPatternLength
+	Local $sPatternList
 
 	If $DefaultPatterns = 0 Then
 		$aPatterns = IniReadArray($sINIPath, "CustomPatterns", $FileName, "")
@@ -1195,40 +2137,45 @@ Func ExecuteSearchPatterns($FileName, $DefaultPatterns, $MyFileToParse)
 		$aPatterns = IniReadArray($sINIPath, "DefaultPatterns", "Values", "")
 	EndIf
 
-	;_ArrayDisplay($aPatterns, "Patterns for " & $FileName)
+	If Not IsArray($aPatterns) Then Return
 
 	For $i = 0 To UBound($aPatterns) - 1
+
 		$sPattern = $aPatterns[$i]
+
+		If $EnableGood1 = 0 And $sPattern = "Good1" Then ContinueLoop
+
 		$sData = IniRead($sINIPath, "Patches", $sPattern, "")
+		If $sData = "" Then ContinueLoop
 		If StringInStr($sData, "|") Then
+
 			$aArray = StringSplit($sData, "|")
+
 			If UBound($aArray) = 3 Then
 
 				$sSearch = StringReplace($aArray[1], '"', '')
 				$sReplace = StringReplace($aArray[2], '"', '')
 
 				$iPatternLength = StringLen($sSearch)
+
 				If $iPatternLength <> StringLen($sReplace) Or Mod($iPatternLength, 2) <> 0 Then
-					MsgBox($MB_SYSTEMMODAL, "Error", "Pattern Error in config.ini:" & $sPattern & @CRLF & $sSearch & @CRLF & $sReplace)
-					Exit
+				MsgBox($MB_SYSTEMMODAL, "Error", "Pattern Error in config.ini:" & @CRLF & $sPattern & @CRLF & $sSearch & @CRLF & $sReplace)
+
+				Exit
 				EndIf
 
-				;MsgBox(0,0, $MyFileToParse & @CRLF & $sSearch & @CRLF  & $aReplace & @CRLF  & $sPattern )
 				LogWrite(1, "Searching for: " & $sPattern & ": " & $sSearch)
 
 				MyRegExpGlobalPatternSearch($MyFileToParse, $sSearch, $sReplace, $sPattern)
 
-				;Exit ; STOP AT FIRST VALUE - COMMENT OUT TO CONTINUE
 			EndIf
-			;Exit
 		EndIf
 
 	Next
 
 EndFunc   ;==>ExecuteSearchPatterns
 
-
-Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToReplace, $PatternName)  ; Path to a file to parse
+Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToReplace, $PatternName)  
 	;MsgBox($MB_SYSTEMMODAL, "Path", $FileToParse)
 	;ConsoleWrite($FileToParse & @CRLF)
 	Local $hFileOpen = FileOpen($FileToParse, $FO_READ + $FO_BINARY)
@@ -1240,7 +2187,7 @@ Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToRepla
 
 	$sz_type = FileRead($hFileOpen, 2)
 
-	If $sz_type = "0x4C01" And StringInStr($FileToParse, "Acrobat", 2) > 0 Then ; Acrobat x86 won't work with this script
+	If $sz_type = "0x4C01" And StringInStr($FileToParse, "Acrobat", 2) > 0 Then 
 
 		MemoWrite(@CRLF & $FileToParse & @CRLF & "---" & @CRLF & "File is 32-bit. Aborting..." & @CRLF & "---")
 		FileClose($hFileOpen)
@@ -1261,14 +2208,14 @@ Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToRepla
 
 		Local $GeneQuestionMark, $AnyNumOfBytes, $OutStringForRegExp
 		For $i = 256 To 1 Step -2 ; limiting to 256 -?-
-			$GeneQuestionMark = _StringRepeat("??", $i / 2) ; Repeat the string -??- $i/2 times.
+			$GeneQuestionMark = _StringRepeat("??", $i / 2) 
 			$AnyNumOfBytes = "(.{" & $i & "})"
 			$OutStringForRegExp = StringReplace($PatternToSearch, $GeneQuestionMark, $AnyNumOfBytes)
 			$PatternToSearch = $OutStringForRegExp
 		Next
 
-		Local $sSearchPattern = $OutStringForRegExp     ;string
-		Local $aReplacePattern = $PatternToReplace     ;string
+		Local $sSearchPattern = $OutStringForRegExp     
+		Local $aReplacePattern = $PatternToReplace     
 		Local $sWildcardSearchPattern = "", $sWildcardReplacePattern = "", $sFinalReplacePattern = ""
 		Local $aInHexTempArray[0]
 		Local $sSearchCharacter = "", $sReplaceCharacter = ""
@@ -1290,10 +2237,10 @@ Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToRepla
 			;_ArrayDisplay($aInHexArray)
 
 			If @error = 0 Then
-				$sWildcardSearchPattern = $aInHexArray[0]   ; full founded Search Pattern index 0
+				$sWildcardSearchPattern = $aInHexArray[0]   
 				$sWildcardReplacePattern = $aReplacePattern
 
-				;MsgBox(-1,"",$sWildcardSearchPattern & @CRLF & $sWildcardReplacePattern) ; full search and full patch with ?? symbols
+				;MsgBox(-1,"",$sWildcardSearchPattern & @CRLF & $sWildcardReplacePattern) 
 
 				If StringInStr($sWildcardReplacePattern, "?") Then
 					;MsgBox($MB_SYSTEMMODAL, "Found ? symbol", "Constructing new Replace string")
@@ -1341,55 +2288,85 @@ EndFunc   ;==>MyRegExpGlobalPatternSearch
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Func MyGlobalPatternPatch($MyFileToPatch, $MyArrayToPatch)
-	;MsgBox($MB_SYSTEMMODAL, "", $MyFileToPatch)
-	;_ArrayDisplay($MyArrayToPatch)
-	ProgressWrite(0)
-	;MemoWrite("Current path" & @CRLF & "---" & @CRLF & $MyFileToPatch & @CRLF & "---" & @CRLF & "medication :)")
-	Local $iRows = UBound($MyArrayToPatch) ; Total number of rows
-	If $iRows > 0 Then
-		MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyFileToPatch & @CRLF & "---" & @CRLF & "medication :)")
-		Local $hFileOpen = FileOpen($MyFileToPatch, $FO_READ + $FO_BINARY)
-		Local $sFileRead = FileRead($hFileOpen)
-		Local $sStringOut
 
-		For $i = 0 To $iRows - 1 Step 2
-			$sStringOut = StringReplace($sFileRead, $MyArrayToPatch[$i], $MyArrayToPatch[$i + 1], 0, 1)
-			$sFileRead = $sStringOut
-			$sStringOut = $sFileRead
-			ProgressWrite(Round($i / $iRows * 100))
-		Next
+    Local $iRows = UBound($MyArrayToPatch)
 
-		;MsgBox($MB_SYSTEMMODAL, "", "binary: " & Binary($sStringOut))
-		FileClose($hFileOpen)
-		FileMove($MyFileToPatch, $MyFileToPatch & ".bak", $FC_OVERWRITE)
-		Local $hFileOpen1 = FileOpen($MyFileToPatch, $FO_OVERWRITE + $FO_BINARY)
-		FileWrite($hFileOpen1, Binary($sStringOut))
-		FileClose($hFileOpen1)
-		ProgressWrite(0)
-		Sleep(100)
-		;MemoWrite1(@CRLF & "---" & @CRLF & "Waitng for your command :)" & @CRLF & "---")
+    If $iRows > 0 Then
 
-		LogWrite(1, "File patched by GenP " & $g_Version & " + config " & $ConfigVerVar)
-		If $bEnableMD5 = 1 Then
-			_Crypt_Startup()
-			Local $sMD5Checksum = _Crypt_HashFile($MyFileToPatch, $CALG_MD5)
-			If Not @error Then
-				LogWrite(1, "MD5 Checksum: " & $sMD5Checksum & @CRLF)
-			EndIf
-			_Crypt_Shutdown()
-		EndIf
+        MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyFileToPatch & @CRLF & "---" & @CRLF & "medication :)")
 
-	Else
-		;Empty array - > no search-replace patterns
-		;File is already patched or no patterns were found .
-		MemoWrite(@CRLF & "No patterns were found" & @CRLF & "---" & @CRLF & "or" & @CRLF & "---" & @CRLF & "file is already patched.")
-		Sleep(100)
+        Local $hFileOpen = FileOpen($MyFileToPatch, $FO_READ + $FO_BINARY)
+        Local $sFileRead = FileRead($hFileOpen)
+        FileClose($hFileOpen)
 
-		LogWrite(1, "No patterns were found or file already patched." & @CRLF)
+        Local $sStringOut
+        Local $bPatched = False
+        Local $iRepl = 0
 
-	EndIf
-	;Sleep(100)
-	;MemoWrite2("***")
+        For $i = 0 To $iRows - 1 Step 2
+
+            $sStringOut = StringReplace($sFileRead, $MyArrayToPatch[$i], $MyArrayToPatch[$i + 1], 0, 1)
+            Local $iRepl = @extended
+
+            If $iRepl > 0 Then $bPatched = True
+
+            $sFileRead = $sStringOut
+
+            ProgressWrite(Round($i / $iRows * 100))
+
+        Next
+
+        If $bPatched Then
+
+            _SetFilePatchState($MyFileToPatch, $PATCH_STATE_PATCHED)
+
+            Local $iIndex = _FindListViewIndexByPath($MyFileToPatch)
+            If $iIndex <> -1 Then
+            _GUICtrlListView_SetItemText($g_idListview, $iIndex, "Patched", 2)
+            _GUICtrlListView_SetItemParam($g_idListview, $iIndex, $PATCH_STATE_PATCHED)
+            EndIf
+
+            FileMove($MyFileToPatch, $MyFileToPatch & ".bak", $FC_OVERWRITE)
+
+            Local $hFileOpen1 = FileOpen($MyFileToPatch, $FO_OVERWRITE + $FO_BINARY)
+            FileWrite($hFileOpen1, Binary($sStringOut))
+            FileClose($hFileOpen1)
+
+            LogWrite(1, "File patched by GenP " & $g_Version & " + config " & $ConfigVerVar)
+
+        Else
+
+            _SetFilePatchState($MyFileToPatch, $PATCH_STATE_UNPATCHED)
+
+            Local $iIndex = _FindListViewIndexByPath($MyFileToPatch)
+            If $iIndex <> -1 Then
+            _GUICtrlListView_SetItemText($g_idListview, $iIndex, "Unpatched", 2)
+            _GUICtrlListView_SetItemParam($g_idListview, $iIndex, $PATCH_STATE_UNPATCHED)
+            EndIf
+
+            MemoWrite(@CRLF & "No patterns were found" & @CRLF & "---" & @CRLF & "or" & @CRLF & "---" & @CRLF & "file is already patched.")
+
+            LogWrite(1, "No patterns were found or file already patched." & @CRLF)
+
+        EndIf
+
+        If $bEnableMD5 = 1 Then
+
+            _Crypt_Startup()
+            Local $sMD5Checksum = _Crypt_HashFile($MyFileToPatch, $CALG_MD5)
+
+            If Not @error Then
+                LogWrite(1, "MD5 Checksum: " & $sMD5Checksum & @CRLF)
+            EndIf
+
+            _Crypt_Shutdown()
+
+        EndIf
+
+    EndIf
+    UpdateUIState()
+    _GUICtrlListView_SetColumn($g_idListview, 1, "", 500, 2)
+
 EndFunc   ;==>MyGlobalPatternPatch
 
 Func RestoreFile($MyFileToDelete)
@@ -1428,16 +2405,16 @@ Func _ListView_LeftClick($hListView, $lParam)
 			Local $aHit
 			$aHit = _GUICtrlListView_HitTest($g_idListview)
 			If $aHit[0] <> -1 Then
-				Local $GroupIdOfHitItem = _GUICtrlListView_GetItemGroupID($idListview, $aHit[0])
+				Local $GroupIdOfHitItem = _GUICtrlListView_GetItemGroupID($g_idListview, $aHit[0])
 				If _GUICtrlListView_GetItemChecked($g_idListview, $aHit[0]) = 1 Then
-					For $i = 0 To _GUICtrlListView_GetItemCount($idListview) - 1
-						If _GUICtrlListView_GetItemGroupID($idListview, $i) = $GroupIdOfHitItem Then
+					For $i = 0 To _GUICtrlListView_GetItemCount($g_idListview) - 1
+						If _GUICtrlListView_GetItemGroupID($g_idListview, $i) = $GroupIdOfHitItem Then
 							_GUICtrlListView_SetItemChecked($g_idListview, $i, 0)
 						EndIf
 					Next
 				Else
-					For $i = 0 To _GUICtrlListView_GetItemCount($idListview) - 1
-						If _GUICtrlListView_GetItemGroupID($idListview, $i) = $GroupIdOfHitItem Then
+					For $i = 0 To _GUICtrlListView_GetItemCount($g_idListview) - 1
+						If _GUICtrlListView_GetItemGroupID($g_idListview, $i) = $GroupIdOfHitItem Then
 							_GUICtrlListView_SetItemChecked($g_idListview, $i, 1)
 						EndIf
 					Next
@@ -1446,6 +2423,7 @@ Func _ListView_LeftClick($hListView, $lParam)
 			EndIf
 		EndIf
 	EndIf
+    UpdateUIState()
 EndFunc   ;==>_ListView_LeftClick
 
 Func _ListView_RightClick()
@@ -1459,122 +2437,131 @@ Func _ListView_RightClick()
 		EndIf
 		;$g_iIndex = $aHit[0]
 	EndIf
+    UpdateUIState()
 EndFunc   ;==>_ListView_RightClick
 
-Func _Assign_Groups_To_Found_Files()
-	ConsoleWrite("Entering _Assign_Groups_To_Found_Files()" & @CRLF)
-	Local $MyListItemCount = _GUICtrlListView_GetItemCount($idListview)
-	ConsoleWrite("Item Count in ListView: " & $MyListItemCount & @CRLF)
-	Local $ItemFromList
-	Local $aGroups[0]
-	Local $iGroupID = 1
-
-	ReDim $g_aGroupIDs[0]
-
-	For $i = 0 To $MyListItemCount - 1
-		$ItemFromList = _GUICtrlListView_GetItemText($idListview, $i, 1)
-		ConsoleWrite("Item Text (Column 2): " & $ItemFromList & @CRLF)
-
-		Local $sGroupName = ""
-		Select
-			Case StringInStr($ItemFromList, "AppsPanel") Or StringInStr($ItemFromList, "Adobe Desktop Service") Or StringInStr($ItemFromList, "HDPIM")
-				$sGroupName = "Creative Cloud"
-			Case StringInStr($ItemFromList, "Acrobat")
-				$sGroupName = "Acrobat"
-			Case StringInStr($ItemFromList, "Aero")
-				$sGroupName = "Aero"
-			Case StringInStr($ItemFromList, "After Effects")
-				$sGroupName = "After Effects"
-			Case StringInStr($ItemFromList, "Animate")
-				$sGroupName = "Animate"
-			Case StringInStr($ItemFromList, "Audition")
-				$sGroupName = "Audition"
-			Case StringInStr($ItemFromList, "Adobe Bridge")
-				$sGroupName = "Bridge"
-			Case StringInStr($ItemFromList, "Character Animator")
-				$sGroupName = "Character Animator"
-			Case StringInStr($ItemFromList, "Dimension")
-				$sGroupName = "Dimension"
-			Case StringInStr($ItemFromList, "Dreamweaver")
-				$sGroupName = "Dreamweaver"
-			Case StringInStr($ItemFromList, "Elements") And StringInStr($ItemFromList, "Organizer")
-				$sGroupName = "Elements Organizer"
-			Case StringInStr($ItemFromList, "Illustrator")
-				$sGroupName = "Illustrator"
-			Case StringInStr($ItemFromList, "InCopy")
-				$sGroupName = "InCopy"
-			Case StringInStr($ItemFromList, "InDesign")
-				$sGroupName = "InDesign"
-			Case StringInStr($ItemFromList, "Lightroom CC")
-				$sGroupName = "Lightroom CC"
-			Case StringInStr($ItemFromList, "Lightroom Classic")
-				$sGroupName = "Lightroom Classic"
-			Case StringInStr($ItemFromList, "Media Encoder")
-				$sGroupName = "Media Encoder"
-			Case StringInStr($ItemFromList, "Photoshop Elements")
-				$sGroupName = "Photoshop Elements"
-			Case StringInStr($ItemFromList, "Photoshop")
-				$sGroupName = "Photoshop"
-			Case StringInStr($ItemFromList, "Premiere Elements")
-				$sGroupName = "Premiere Elements"
-			Case StringInStr($ItemFromList, "Premiere Pro")
-				$sGroupName = "Premiere Pro"
-			Case StringInStr($ItemFromList, "Premiere Rush")
-				$sGroupName = "Premiere Rush"
-			Case StringInStr($ItemFromList, "Substance 3D Designer")
-				$sGroupName = "Substance 3D Designer"
-			Case StringInStr($ItemFromList, "Substance 3D Modeler")
-				$sGroupName = "Substance 3D Modeler"
-			Case StringInStr($ItemFromList, "Substance 3D Painter")
-				$sGroupName = "Substance 3D Painter"
-			Case StringInStr($ItemFromList, "Substance 3D Sampler")
-				$sGroupName = "Substance 3D Sampler"
-			Case StringInStr($ItemFromList, "Substance 3D Stager")
-				$sGroupName = "Substance 3D Stager"
-			Case StringInStr($ItemFromList, "Substance 3D Viewer")
-				$sGroupName = "Substance 3D Viewer"
-			Case Else
-				$sGroupName = "Else"
-		EndSelect
-
-		ConsoleWrite("Group Name Assigned: " & $sGroupName & @CRLF)
-
-		Local $iGroupIndex = _ArraySearch($aGroups, $sGroupName)
-		If $iGroupIndex = -1 Then
-			_ArrayAdd($aGroups, $sGroupName)
-			_GUICtrlListView_InsertGroup($idListview, $i, $iGroupID, "", 1)
-			_GUICtrlListView_SetItemGroupID($idListview, $i, $iGroupID)
-			_GUICtrlListView_SetGroupInfo($idListview, $iGroupID, $sGroupName, 1, $LVGS_COLLAPSIBLE)
-			_ArrayAdd($g_aGroupIDs, $iGroupID)
-			ConsoleWrite("New Group Created - ID: " & $iGroupID & @CRLF)
-			$iGroupID += 1
-		Else
-			_GUICtrlListView_SetItemGroupID($idListview, $i, $iGroupIndex + 1)
-			ConsoleWrite("Assigned to Existing Group: " & $sGroupName & " (ID: " & $iGroupIndex + 1 & ")" & @CRLF)
-		EndIf
-	Next
-
-	For $i = 0 To $MyListItemCount - 1
-		_GUICtrlListView_SetItemChecked($idListview, $i, 1)
-	Next
-
-	ConsoleWrite("Exiting _Assign_Groups_To_Found_Files()" & @CRLF)
-	ConsoleWrite("Number of Groups in $g_aGroupIDs: " & UBound($g_aGroupIDs) & @CRLF)
-	For $i = 0 To UBound($g_aGroupIDs) - 1
-		ConsoleWrite("Group ID in $g_aGroupIDs: " & $g_aGroupIDs[$i] & @CRLF)
-	Next
-EndFunc   ;==>_Assign_Groups_To_Found_Files
+;Func _Assign_Groups_To_Found_Files()
+;	ConsoleWrite("Entering _Assign_Groups_To_Found_Files()" & @CRLF)
+;	Local $MyListItemCount = _GUICtrlListView_GetItemCount($g_idListview)
+;	ConsoleWrite("Item Count in ListView: " & $MyListItemCount & @CRLF)
+;	Local $ItemFromList
+;	Local $aGroups[0]
+;	Local $iGroupID = 1
+;
+;	ReDim $g_aGroupIDs[0]
+;
+;	For $i = 0 To $MyListItemCount - 1
+;		$ItemFromList = _GUICtrlListView_GetItemText($g_idListview, $i, 1)
+;		ConsoleWrite("Item Text (Column 2): " & $ItemFromList & @CRLF)
+;
+;		Local $absolutePath = StringReplace($ItemFromList, "\\", "\")
+;
+;		Local $sGroupName = ""
+;
+;		Local $bIsBeta = StringInStr($absolutePath, "(Beta)") > 0
+;
+;		Select
+;			Case StringInStr($ItemFromList, "AppsPanel") Or StringInStr($ItemFromList, "Adobe Desktop Service") Or StringInStr($ItemFromList, "HDPIM")
+;				$sGroupName = "Creative Cloud"
+;			Case StringInStr($ItemFromList, "Acrobat")
+;				$sGroupName = "Acrobat"
+;			Case StringInStr($ItemFromList, "Aero")
+;				$sGroupName = "Aero"
+;			Case StringInStr($ItemFromList, "After Effects")
+;				$sGroupName = "After Effects"
+;			Case StringInStr($ItemFromList, "Animate")
+;				$sGroupName = "Animate"
+;			Case StringInStr($ItemFromList, "Audition")
+;				$sGroupName = "Audition"
+;			Case StringInStr($ItemFromList, "Bridge")
+;				$sGroupName = "Bridge"
+;			Case StringInStr($ItemFromList, "Character Animator")
+;				$sGroupName = "Character Animator"
+;			Case StringInStr($ItemFromList, "Dimension")
+;				$sGroupName = "Dimension"
+;			Case StringInStr($ItemFromList, "Dreamweaver")
+;				$sGroupName = "Dreamweaver"
+;			Case StringInStr($ItemFromList, "Elements") And StringInStr($ItemFromList, "Organizer")
+;				$sGroupName = "Elements Organizer"
+;			Case StringInStr($ItemFromList, "Illustrator")
+;				$sGroupName = "Illustrator"
+;			Case StringInStr($ItemFromList, "InCopy")
+;				$sGroupName = "InCopy"
+;			Case StringInStr($ItemFromList, "InDesign")
+;				$sGroupName = "InDesign"
+;			Case StringInStr($ItemFromList, "Lightroom CC")
+;				$sGroupName = "Lightroom CC"
+;			Case StringInStr($ItemFromList, "Lightroom Classic")
+;				$sGroupName = "Lightroom Classic"
+;			Case StringInStr($ItemFromList, "Media Encoder")
+;				$sGroupName = "Media Encoder"
+;			Case StringInStr($ItemFromList, "Photoshop Elements")
+;				$sGroupName = "Photoshop Elements"
+;			Case StringInStr($ItemFromList, "Photoshop")
+;				$sGroupName = "Photoshop"
+;			Case StringInStr($ItemFromList, "Premiere Elements")
+;				$sGroupName = "Premiere Elements"
+;			Case StringInStr($ItemFromList, "Premiere Pro")
+;				$sGroupName = "Premiere Pro"
+;			Case StringInStr($ItemFromList, "Premiere Rush")
+;				$sGroupName = "Premiere Rush"
+;			Case StringInStr($ItemFromList, "Substance 3D Designer")
+;				$sGroupName = "Substance 3D Designer"
+;			Case StringInStr($ItemFromList, "Substance 3D Modeler")
+;				$sGroupName = "Substance 3D Modeler"
+;			Case StringInStr($ItemFromList, "Substance 3D Painter")
+;				$sGroupName = "Substance 3D Painter"
+;			Case StringInStr($ItemFromList, "Substance 3D Sampler")
+;				$sGroupName = "Substance 3D Sampler"
+;			Case StringInStr($ItemFromList, "Substance 3D Stager")
+;				$sGroupName = "Substance 3D Stager"
+;			Case StringInStr($ItemFromList, "Substance 3D Viewer")
+;				$sGroupName = "Substance 3D Viewer"
+;			Case Else
+;				$sGroupName = "Other"
+;		EndSelect
+;		If $sGroupName = "" Then $sGroupName = "Other"
+;		If $bIsBeta Then $sGroupName &= " (Beta)"
+;
+;		ConsoleWrite("Group Name Assigned: " & $sGroupName & @CRLF)
+;
+;		Local $iGroupIndex = _ArraySearch($aGroups, $sGroupName)
+;		If $iGroupIndex = -1 Then
+;			_ArrayAdd($aGroups, $sGroupName)
+;			_GUICtrlListView_InsertGroup($g_idListview, $i, $iGroupID, $sGroupName, 1)
+;			_GUICtrlListView_SetGroupInfo($g_idListview, $iGroupID, $sGroupName, 1, 0)
+;			_GUICtrlListView_SetItemGroupID($g_idListview, $i, $iGroupID)
+;			_ArrayAdd($g_aGroupIDs, $iGroupID)
+;			ConsoleWrite("New Group Created - ID: " & $iGroupID & @CRLF)
+;			$iGroupID += 1
+;		Else
+;			_GUICtrlListView_SetItemGroupID($g_idListview, $i, $iGroupIndex + 1)
+;			ConsoleWrite("Assigned to Existing Group: " & $sGroupName & " (ID: " & $iGroupIndex + 1 & ")" & @CRLF)
+;		EndIf
+;	Next
+;
+;	For $i = 0 To $MyListItemCount - 1
+;		_GUICtrlListView_SetItemChecked($g_idListview, $i, 1)
+;	Next
+;
+;	ConsoleWrite("Exiting _Assign_Groups_To_Found_Files()" & @CRLF)
+;	ConsoleWrite("Number of Groups in $g_aGroupIDs: " & UBound($g_aGroupIDs) & @CRLF)
+;	For $i = 0 To UBound($g_aGroupIDs) - 1
+;		ConsoleWrite("Group ID in $g_aGroupIDs: " & $g_aGroupIDs[$i] & @CRLF)
+;	Next
+;EndFunc   ;==>_Assign_Groups_To_Found_Files
 
 Func _Collapse_All_Click()
-	Local $aInfo, $aCount = _GUICtrlListView_GetGroupCount($idListview)
+	Local $aInfo, $aCount = _GUICtrlListView_GetGroupCount($g_idListview)
 	If $aCount > 0 Then
 		If $MyLVGroupIsExpanded = 1 Then
 			_SendMessageL($idListview, $WM_SETREDRAW, False, 0)
 
-			For $i = 1 To 25
-				$aInfo = _GUICtrlListView_GetGroupInfo($idListview, $i)
+			For $i = 1 To $aCount
+
+				$aInfo = _GUICtrlListView_GetGroupInfo($g_idListview, $i)
 				If IsArray($aInfo) Then
-					_GUICtrlListView_SetGroupInfo($idListview, $i, $aInfo[0], $aInfo[1], $LVGS_COLLAPSED)
+					_GUICtrlListView_SetGroupInfo($g_idListview, $i, $aInfo[0], $aInfo[1], $LVGS_COLLAPSED)
 				EndIf
 			Next
 			_SendMessageL($idListview, $WM_SETREDRAW, True, 0)
@@ -1583,23 +2570,25 @@ Func _Collapse_All_Click()
 			_Expand_All_Click()
 		EndIf
 		$MyLVGroupIsExpanded = Not $MyLVGroupIsExpanded
+		UpdateUIState()
 	EndIf
 EndFunc   ;==>_Collapse_All_Click
 
 Func _Expand_All_Click()
-	Local $aInfo, $aCount = _GUICtrlListView_GetGroupCount($idListview)
+	Local $aInfo, $aCount = _GUICtrlListView_GetGroupCount($g_idListview)
 	If $aCount > 0 Then
 		_SendMessageL($idListview, $WM_SETREDRAW, False, 0)
 
-		For $i = 1 To 25
-			$aInfo = _GUICtrlListView_GetGroupInfo($idListview, $i)
+		For $i = 0 To $aCount - 1
+			$aInfo = _GUICtrlListView_GetGroupInfo($g_idListview, $i)
 			If IsArray($aInfo) Then
-				_GUICtrlListView_SetGroupInfo($idListview, $i, $aInfo[0], $aInfo[1], $LVGS_NORMAL)
-				_GUICtrlListView_SetGroupInfo($idListview, $i, $aInfo[0], $aInfo[1], $LVGS_COLLAPSIBLE)
+				_GUICtrlListView_SetGroupInfo($g_idListview, $i, $aInfo[0], $aInfo[1], $LVGS_NORMAL)
+				_GUICtrlListView_SetGroupInfo($g_idListview, $i, $aInfo[0], $aInfo[1], $LVGS_COLLAPSIBLE)
 			EndIf
 		Next
 		_SendMessageL($idListview, $WM_SETREDRAW, True, 0)
 		_RedrawWindow($idListview)
+		UpdateUIState()
 	EndIf
 EndFunc   ;==>_Expand_All_Click
 
@@ -1640,7 +2629,7 @@ Func hL_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
 	Local $iCode = BitShift($wParam, 16)
 
 	If $iCode = $STN_CLICKED Then
-		If $iIDFrom = $g_idHyperlinkMain Or $iIDFrom = $g_idHyperlinkLog Or $iIDFrom = $g_idHyperlinkOptions Or $iIDFrom = $g_idHyperlinkPopup Then
+		If $iIDFrom = $g_idHyperlinkMain Or $iIDFrom = $g_idHyperlinkOptions Or $iIDFrom = $g_idHyperlinkUnpack Or $iIDFrom = $g_idHyperlinkWinTrust Or $iIDFrom = $g_idHyperlinkHosts Or $iIDFrom = $g_idHyperlinkAGS Or $iIDFrom = $g_idHyperlinkFirewall Or $iIDFrom = $g_idHyperlinkLog Then
 			Local $sUrl = Deloader($g_aSignature)
 			If TimerDiff($g_iHyperlinkClickTime) > 500 Then
 				ShellExecute($sUrl)
@@ -1686,8 +2675,8 @@ Func _IsChecked($idControlID)
 	Return BitAND(GUICtrlRead($idControlID), $GUI_CHECKED) = $GUI_CHECKED
 EndFunc   ;==>_IsChecked
 
-
 Func SaveOptionsToConfig()
+
 	If _IsChecked($idFindACC) Then
 		IniWrite($sINIPath, "Options", "FindACC", "1")
 	Else
@@ -1704,27 +2693,62 @@ Func SaveOptionsToConfig()
 		IniWrite($sINIPath, "Options", "OnlyDefaultFolders", "0")
 	EndIf
 
+	If _IsChecked($idGood1) Then
+		IniWrite($sINIPath, "Options", "EnableGood1", "1")
+		$EnableGood1 = 1
+	Else
+		IniWrite($sINIPath, "Options", "EnableGood1", "0")
+		$EnableGood1 = 0
+	EndIf
+	If _IsChecked($idShowBetaApps) Then
+		IniWrite($sINIPath, "Options", "ShowBetaApps", "1")
+		$bShowBetaApps = 1
+	Else
+		IniWrite($sINIPath, "Options", "ShowBetaApps", "0")
+		$bShowBetaApps = 0
+	EndIf
+
 	Local $sNewDomainListURL = StringStripWS(GUICtrlRead($idCustomDomainListInput), 1)
 
 	If $sNewDomainListURL = "" Then
 		$sNewDomainListURL = $sDefaultDomainListURL
 		GUICtrlSetData($idCustomDomainListInput, $sNewDomainListURL)
-		MsgBox(0, "Empty URL", "The custom domain list URL cannot be empty. Default URL set.")
+		MsgBox(48, "Empty URL", "The custom domain list URL cannot be empty." & @CRLF & _
+ 		"The default URL has been restored.")
+	EndIf
+
+	If Not StringRegExp($sNewDomainListURL, "(?i)^https?://") Then
+		MsgBox(16, "Invalid URL", "Please enter a valid HTTP or HTTPS URL.")
+		Return
 	EndIf
 
 	If $sNewDomainListURL <> $sCurrentDomainListURL Then
 		IniWrite($sINIPath, "Options", "CustomDomainListURL", $sNewDomainListURL)
 		$sCurrentDomainListURL = $sNewDomainListURL
 	EndIf
+	FillListViewWithInfo()
+
+	GUICtrlSetData($idOptionsReminder, "Options saved successfully")
+	AdlibUnRegister("_RestoreOptionsReminder")
+	AdlibRegister("_RestoreOptionsReminder", 2000)
 EndFunc   ;==>SaveOptionsToConfig
 
+Func _RestoreOptionsReminder()
+	GUICtrlSetData($idOptionsReminder, "Changes will not take effect until saved")
+	AdlibUnRegister("_RestoreOptionsReminder")
+EndFunc
+
 Func Deloader($sLoaded)
-	Local $sDeloaded = ""
-	For $i = 1 To StringLen($sLoaded)
-		Local $iAscii = Asc(StringMid($sLoaded, $i, 1))
-		$sDeloaded &= Chr($iAscii - 10)
-	Next
-	Return $sDeloaded
+        Local $sDeloaded = ""
+        For $i = 1 To StringLen($sLoaded)
+                Local $iAscii = Asc(StringMid($sLoaded, $i, 1))
+                Local $iShifted = $iAscii - 10
+                If $iShifted < 32 Then
+                      $iShifted = 126 - (31 - $iShifted)
+                EndIf
+                $sDeloaded &= Chr($iShifted)
+        Next
+        Return $sDeloaded
 EndFunc   ;==>Deloader
 
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1754,7 +2778,7 @@ EndFunc   ;==>ShowInfoPopup
 
 Func RemoveAGS()
 	GUICtrlSetState($idBtnRemoveAGS, $GUI_DISABLE)
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 	MemoWrite(@CRLF & "Removing AGS from this Computer" & @CRLF & "---" & @CRLF & "Please wait...")
 
 	Local $aServices = ["AGMService", "AGSService"]
@@ -1849,7 +2873,7 @@ EndFunc   ;==>RemoveAGS
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Func RemoveHostsEntries()
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 	Local $sHostsPath = @WindowsDir & "\System32\drivers\etc\hosts"
 	Local $sTempHosts = @TempDir & "\temp_hosts_remove.tmp"
 	Local $sMarkerStart = "# START - Adobe Blocklist"
@@ -1965,7 +2989,7 @@ Func ScanDNSCache(ByRef $sHostsContent)
 EndFunc   ;==>ScanDNSCache
 
 Func UpdateHostsFile()
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 	RemoveHostsEntries()
 	GUICtrlSetState($idBtnUpdateHosts, $GUI_DISABLE)
 	MemoWrite(@CRLF & "Starting hosts file update..." & @CRLF)
@@ -2077,7 +3101,7 @@ Func EditHosts()
 EndFunc   ;==>EditHosts
 
 Func RestoreHosts()
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 	MemoWrite(@CRLF & "Restoring the hosts file from backup..." & @CRLF & "---" & @CRLF & "Please wait..." & @CRLF)
 	Local $sHostsPath = @WindowsDir & "\System32\drivers\etc\hosts"
 	Local $sBackupPath = @WindowsDir & "\System32\drivers\etc\hosts.bak"
@@ -2205,7 +3229,7 @@ Func RuleExists($ruleName)
 EndFunc   ;==>RuleExists
 
 Func ShowFirewallStatus()
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 	MemoWrite("Checking Windows Firewall status...")
 	LogWrite(1, "Checking Windows Firewall status...")
 
@@ -2264,7 +3288,7 @@ Func ShowFirewallStatus()
 EndFunc   ;==>ShowFirewallStatus
 
 Func RemoveFirewallRules()
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 	MemoWrite("Starting firewall rule removal process...")
 	LogWrite(1, "Starting firewall rule removal process.")
 
@@ -2363,7 +3387,7 @@ Func CreateFirewallRules()
 	EndIf
 
 	ShowFirewallStatus()
-	_GUICtrlTab_SetCurFocus($hTab, 3)
+	_GUICtrlTab_SetCurFocus($hTab, 7)
 
 	If UBound($SelectedApps) = 0 Then
 		MemoWrite("No applications selected by the user.")
@@ -2430,14 +3454,14 @@ EndFunc   ;==>CreateFirewallRules
 
 Func ShowAppSelectionGUI($foundFiles)
 	If Not FileExists($MyDefPath) Or Not StringInStr(FileGetAttrib($MyDefPath), "D") Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("Error: Invalid Path: " & $MyDefPath)
 		LogWrite(1, "Error: Invalid Path: " & $MyDefPath)
 		ToggleLog(1)
 		Return ""
 	EndIf
 	If UBound($foundFiles) = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("No file(s) found at: " & $MyDefPath)
 		LogWrite(1, "No file(s) found at: " & $MyDefPath)
 		ToggleLog(1)
@@ -2529,7 +3553,7 @@ Func ShowAppSelectionGUI($foundFiles)
 					EndIf
 					$hItem = _GUICtrlTreeView_GetNext($hTreeView, $hItem)
 				WEnd
-				_GUICtrlTab_SetCurFocus($hTab, 3)
+				_GUICtrlTab_SetCurFocus($hTab, 7)
 				MemoWrite("Selected " & UBound($SelectedApps) & " file(s) for firewall rules.")
 				GUIDelete($hGUI)
 				Return $SelectedApps
@@ -2590,12 +3614,12 @@ Func ShowToggleRulesGUI()
 				GUIDelete($hToggleGUI)
 				Return
 			Case $hEnableButton
-				_GUICtrlTab_SetCurFocus($hTab, 3)
+				_GUICtrlTab_SetCurFocus($hTab, 7)
 				GUIDelete($hToggleGUI)
 				EnableAllFWRules()
 				Return
 			Case $hDisableButton
-				_GUICtrlTab_SetCurFocus($hTab, 3)
+				_GUICtrlTab_SetCurFocus($hTab, 7)
 				GUIDelete($hToggleGUI)
 				DisableAllFWRules()
 				Return
@@ -2735,7 +3759,7 @@ EndFunc   ;==>DisableAllFWRules
 
 Func FindRuntimeInstallerFiles()
 	If Not FileExists($MyDefPath) Or Not StringInStr(FileGetAttrib($MyDefPath), "D") Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("Error: Invalid Path: " & $MyDefPath)
 		LogWrite(1, "Error: Invalid Path: " & $MyDefPath)
 		Local $empty[0]
@@ -2747,7 +3771,7 @@ Func FindRuntimeInstallerFiles()
 	Local $dllPaths[0]
 
 	If @error Or $tRuntimePaths[0][0] = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("Warning: [RuntimeInstallers] section not found or empty in config.ini")
 		LogWrite(1, "Warning: [RuntimeInstallers] section not found or empty in config.ini")
 		Local $empty[0]
@@ -2811,7 +3835,7 @@ Func UnpackRuntimeInstallers()
 	Local $foundFiles = FindRuntimeInstallerFiles()
 
 	If UBound($foundFiles) = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("No file(s) found at: " & $MyDefPath)
 		LogWrite(1, "No file(s) found at: " & $MyDefPath)
 		ToggleLog(1)
@@ -2821,7 +3845,7 @@ Func UnpackRuntimeInstallers()
 	Local $selectedFiles = RuntimeDllSelectionGUI($foundFiles, "Unpack")
 
 	If Not IsArray($selectedFiles) Or UBound($selectedFiles) = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("No RuntimeInstaller.dll files selected to unpack.")
 		LogWrite(1, "No files selected to unpack.")
 		ToggleLog(1)
@@ -2832,7 +3856,7 @@ Func UnpackRuntimeInstallers()
 	If Not FileExists($upxPath) Then
 		FileInstall("upx.exe", $upxPath, 1)
 		If Not FileExists($upxPath) Then
-			_GUICtrlTab_SetCurFocus($hTab, 3)
+			_GUICtrlTab_SetCurFocus($hTab, 7)
 			MemoWrite("Error: Failed to extract upx.exe to " & $upxPath)
 			LogWrite(1, "Error: Failed to extract upx.exe.")
 			ToggleLog(1)
@@ -3007,14 +4031,14 @@ EndFunc   ;==>PatchUPXHeader
 
 Func RuntimeDllSelectionGUI($foundFiles, $operation)
 	If Not FileExists($MyDefPath) Or Not StringInStr(FileGetAttrib($MyDefPath), "D") Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("Error: Invalid Path: " & $MyDefPath)
 		LogWrite(1, "Error: Invalid Path: " & $MyDefPath)
 		ToggleLog(1)
 		Return ""
 	EndIf
 	If UBound($foundFiles) = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("No RuntimeInstaller.dll files found to unpack.")
 		LogWrite(1, "No RuntimeInstaller.dll files found to unpack.")
 		ToggleLog(1)
@@ -3105,13 +4129,13 @@ Func RuntimeDllSelectionGUI($foundFiles, $operation)
 				WEnd
 				GUIDelete($hGUI)
 				If UBound($selectedFiles) = 0 Then
-					_GUICtrlTab_SetCurFocus($hTab, 3)
+					_GUICtrlTab_SetCurFocus($hTab, 7)
 					MemoWrite("No RuntimeInstaller.dll files selected to unpack.")
 					LogWrite(1, "No RuntimeInstaller.dll files selected to unpack.")
 					ToggleLog(1)
 					Return ""
 				EndIf
-				_GUICtrlTab_SetCurFocus($hTab, 3)
+				_GUICtrlTab_SetCurFocus($hTab, 7)
 				Return $selectedFiles
 			Case $GUI_EVENT_PRIMARYDOWN
 				Local $aCursor = GUIGetCursorInfo($hGUI)
@@ -3263,7 +4287,7 @@ Func TrustEXEs()
 	Local $foundApps = FindApps(True)
 
 	If UBound($foundApps) = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("No applications found to trust at: " & $MyDefPath)
 		LogWrite(1, "No applications found to trust at: " & $MyDefPath)
 		ToggleLog(1)
@@ -3432,7 +4456,7 @@ Func TrustSelectionGUI($foundFiles, $operation)
 		Return ""
 	EndIf
 	If UBound($foundFiles) = 0 Then
-		_GUICtrlTab_SetCurFocus($hTab, 3)
+		_GUICtrlTab_SetCurFocus($hTab, 7)
 		MemoWrite("No applications found to " & StringLower($operation) & " at: " & $MyDefPath)
 		LogWrite(1, "No applications found to " & StringLower($operation) & " at: " & $MyDefPath)
 		ToggleLog(1)
@@ -3523,7 +4547,7 @@ Func TrustSelectionGUI($foundFiles, $operation)
 					EndIf
 					$hItem = _GUICtrlTreeView_GetNext($hTreeView, $hItem)
 				WEnd
-				_GUICtrlTab_SetCurFocus($hTab, 3)
+				_GUICtrlTab_SetCurFocus($hTab, 7)
 				GUIDelete($hGUI)
 				If UBound($selectedFiles) = 0 Then
 					MemoWrite("No files selected to " & StringLower($operation) & ".")
