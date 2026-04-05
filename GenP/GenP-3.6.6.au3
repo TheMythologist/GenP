@@ -2,15 +2,15 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v3.6.5.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v3.6.6.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=3.6.5.0
+#AutoIt3Wrapper_Res_Fileversion=3.6.6.0
 #AutoIt3Wrapper_Res_LegalCopyright=GenP 2025
 #AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2025
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=3.6.5
+#AutoIt3Wrapper_Res_ProductVersion=3.6.6
 #AutoIt3Wrapper_Run_Tidy=n
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_UseX64=y
@@ -42,7 +42,7 @@
 
 AutoItSetOption("GUICloseOnESC", 0)  ;1=ESC closes, 0=ESC won't close
 
-Global $g_Version = "3.6.5 - CGP"
+Global $g_Version = "3.6.6 - CGP"
 Global $g_AppWndTitle = "GenP v" & $g_Version
 Global $g_AppVersion = "CGP Community Edition" & @CRLF & "Originally created by uncia"
 
@@ -659,10 +659,12 @@ While 1
 			ShowInfoPopup("Manages hosts file -- specifically targeting domains used for popups. Auto update hosts using the provided list URL (Options), manually edit in Notepad, remove all entries, or restore a backup." & @CRLF & @CRLF & "Hosts must be updated regularly to remain effective.")
 
 		Case $idMsg = $idBtnRuntimeInfo
-			ShowInfoPopup("Select apps may pack the RuntimeInstaller.dll with UPX causing patching to fail. GenP can unpack these files so they can then be patched." & @CRLF & @CRLF & "This method is currently only needed with After Effects and Premiere Pro.")
+			ShowInfoPopup("Select apps may pack the RuntimeInstaller.dll with UPX causing patching to fail. GenP can unpack these files so they can then be patched." & @CRLF & @CRLF & @CRLF & @CRLF & _
+					"UPX 5.0.1, Copyright (C) 1996-2025 Markus Oberhumer, Laszlo Molnar & John Reiser" & @CRLF & _
+					"UPX is distributed under a modified GNU GPL v2. See https://github.com/upx/upx for license and source code.")
 
 		Case $idMsg = $idBtnWintrustInfo
-			ShowInfoPopup("Avoid popups by ' trusting' each app. Uses a modified DLL + registry edit for allowing DLL redirection. Trust/Untrust each app or add/remove the reg key as needed. Reg key is auto-added when trusting apps." & @CRLF & @CRLF & "Thanks to Team V.R for wintrust.dll!")
+			ShowInfoPopup("Avoid popups by ' trusting' each app. Uses a modified DLL + registry edit for allowing DLL redirection. Trust/Untrust each app or add/remove the reg key as needed. Reg key is auto-added when trusting apps." & @CRLF & @CRLF & "Shout out Team V.R !")
 
 	EndSelect
 WEnd
@@ -1048,7 +1050,7 @@ Func GUICtrlSetDataEx($hWnd, $sText, $bTS)
 	Local $iLength = DllCall("user32.dll", "lresult", "SendMessageW", "hwnd", $hWnd, "uint", 0x000E, "wparam", 0, "lparam", 0)
 	DllCall("user32.dll", "lresult", "SendMessageW", "hwnd", $hWnd, "uint", 0xB1, "wparam", $iLength[0], "lparam", $iLength[0]) ; $EM_SETSEL
 	If $bTS = 1 Then
-		Local $iData = @CRLF & @YEAR & "-" & @MON & "-" & @MDAY & " " & @HOUR & ":" & @MIN & ":" & @SEC & "." & @MSEC & " " & $sText
+		Local $iData = @CRLF & $sText
 	Else
 		Local $iData = $sText
 	EndIf
@@ -1499,6 +1501,8 @@ Func _Assign_Groups_To_Found_Files()
 				$sGroupName = "Dimension"
 			Case StringInStr($ItemFromList, "Dreamweaver")
 				$sGroupName = "Dreamweaver"
+			Case StringInStr($ItemFromList, "Elements") And StringInStr($ItemFromList, "Organizer")
+				$sGroupName = "Elements Organizer"
 			Case StringInStr($ItemFromList, "Illustrator")
 				$sGroupName = "Illustrator"
 			Case StringInStr($ItemFromList, "InCopy")
@@ -1511,8 +1515,12 @@ Func _Assign_Groups_To_Found_Files()
 				$sGroupName = "Lightroom Classic"
 			Case StringInStr($ItemFromList, "Media Encoder")
 				$sGroupName = "Media Encoder"
+			Case StringInStr($ItemFromList, "Photoshop Elements")
+				$sGroupName = "Photoshop Elements"
 			Case StringInStr($ItemFromList, "Photoshop")
 				$sGroupName = "Photoshop"
+			Case StringInStr($ItemFromList, "Premiere Elements")
+				$sGroupName = "Premiere Elements"
 			Case StringInStr($ItemFromList, "Premiere Pro")
 				$sGroupName = "Premiere Pro"
 			Case StringInStr($ItemFromList, "Premiere Rush")
@@ -2856,14 +2864,31 @@ Func UnpackRuntimeInstallers()
 			ContinueLoop
 		EndIf
 
+		If Not PatchUPXHeader($file) Then
+			MemoWrite("Failed to patch UPX headers for: " & $file)
+			LogWrite(1, "Failed to patch UPX headers for: " & $file)
+			ContinueLoop
+		EndIf
+
 		Local $iResult = RunWait('"' & $upxPath & '" -d "' & $file & '"', "", @SW_HIDE)
 		If $iResult = 0 Then
 			MemoWrite("Successfully unpacked: " & $file)
 			LogWrite(1, "Successfully unpacked: " & $file)
 			$successCount += 1
+			Local $sBackupPath = $file & ".bak"
+			If FileExists($sBackupPath) Then
+				FileDelete($sBackupPath)
+			EndIf
 		Else
 			MemoWrite("Failed to unpack: " & $file & " (UPX error code: " & $iResult & ")")
 			LogWrite(1, "Failed to unpack: " & $file & " (UPX error code: " & $iResult & ")")
+			Local $sBackupPath = $file & ".bak"
+			If FileExists($sBackupPath) Then
+				FileCopy($sBackupPath, $file, 1)
+				FileDelete($sBackupPath)
+				MemoWrite("Restored original file from backup: " & $file)
+				LogWrite(1, "Restored original file from backup: " & $file)
+			EndIf
 		EndIf
 	Next
 
@@ -2895,18 +2920,94 @@ Func IsUPXPacked($sFilePath)
 
 	Local $bData = FileRead($hFile)
 	FileClose($hFile)
-
 	If @error Then
 		LogWrite(1, "Error: Failed to read file for UPX check: " & $sFilePath)
 		Return False
 	EndIf
 
-	If StringInStr(BinaryToString($bData), "UPX!") Or StringInStr($bData, "0x55505821") Then
+	Local $sHexData = String($bData)
+	If StringInStr($sHexData, "55505821") Or StringInStr($sHexData, "007465787400") Or StringInStr($sHexData, "746578743100") Then
 		Return True
 	EndIf
 
 	Return False
 EndFunc   ;==>IsUPXPacked
+
+Func PatchUPXHeader($sFilePath)
+	Local Const $sUPX0 = "005550583000"
+	Local Const $sUPX1 = "555058310000"
+
+	Local $aCustomHeaders1 = ["007465787400"]
+	Local $aCustomHeaders2 = ["746578743100"]
+
+	Local $sBackupPath = $sFilePath & ".bak"
+	If Not FileCopy($sFilePath, $sBackupPath, 1) Then
+		MemoWrite("Error: Failed to create backup for: " & $sFilePath)
+		LogWrite(1, "Error: Failed to create backup for: " & $sFilePath)
+		Return False
+	EndIf
+
+	Local $hFile = FileOpen($sFilePath, 16)
+	If $hFile = -1 Then
+		MemoWrite("Error: Failed to open file for patching: " & $sFilePath)
+		LogWrite(1, "Error: Failed to open file for patching: " & $sFilePath)
+		Return False
+	EndIf
+	Local $bData = FileRead($hFile)
+	FileClose($hFile)
+	If @error Then
+		MemoWrite("Error: Failed to read file for patching: " & $sFilePath)
+		LogWrite(1, "Error: Failed to read file for patching: " & $sFilePath)
+		Return False
+	EndIf
+
+	Local $sHexData = String($bData)
+	Local $bModified = False
+
+	For $sHeader In $aCustomHeaders1
+		If StringInStr($sHexData, $sHeader) Then
+			$sHexData = StringReplace($sHexData, $sHeader, $sUPX0)
+			$bModified = True
+			ExitLoop
+		EndIf
+	Next
+
+	For $sHeader In $aCustomHeaders2
+		If StringInStr($sHexData, $sHeader) Then
+			$sHexData = StringReplace($sHexData, $sHeader, $sUPX1)
+			$bModified = True
+			ExitLoop
+		EndIf
+	Next
+
+	If Not $bModified Then
+		MemoWrite("No custom UPX headers found in: " & $sFilePath)
+		FileDelete($sBackupPath)
+		Return True
+	EndIf
+
+	Local $bModifiedData = Binary("0x" & StringMid($sHexData, 3))
+	Local $hFileWrite = FileOpen($sFilePath, 18)
+	If $hFileWrite = -1 Then
+		MemoWrite("Error: Failed to open file for writing: " & $sFilePath)
+		LogWrite(1, "Error: Failed to open file for writing: " & $sFilePath)
+		FileCopy($sBackupPath, $sFilePath, 1)
+		FileDelete($sBackupPath)
+		Return False
+	EndIf
+	FileWrite($hFileWrite, $bModifiedData)
+	FileClose($hFileWrite)
+	If @error Then
+		MemoWrite("Error: Failed to write patched data to: " & $sFilePath)
+		LogWrite(1, "Error: Failed to write patched data to: " & $sFilePath)
+		FileCopy($sBackupPath, $sFilePath, 1)
+		FileDelete($sBackupPath)
+		Return False
+	EndIf
+
+	MemoWrite("Successfully patched UPX headers in: " & $sFilePath)
+	Return True
+EndFunc   ;==>PatchUPXHeader
 
 Func RuntimeDllSelectionGUI($foundFiles, $operation)
 	If Not FileExists($MyDefPath) Or Not StringInStr(FileGetAttrib($MyDefPath), "D") Then
@@ -3374,7 +3475,7 @@ Func TrustSelectionGUI($foundFiles, $operation)
 			_GUICtrlTreeView_SetChecked($hTreeView, $hAppNode, False)
 		EndIf
 		Local $hItem = GUICtrlCreateTreeViewItem($fileClean, $appNodes($appName))
-		_GUICtrlTreeView_SetChecked($hTreeView, $hItem, StringInStr($fileClean, ".exe"))
+		_GUICtrlTreeView_SetChecked($hTreeView, $hItem, False)
 	Next
 
 	Global $prevStates = ObjCreate("Scripting.Dictionary")

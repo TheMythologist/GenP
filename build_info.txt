@@ -1,9 +1,6 @@
-For automated building, run 'run_build.bat' as admin
+For automated building, run 'run_build.bat' as admin...
 
-- downloads MSYS2 (build upx) and AutoIt/SciTE (build GenP)
-
-- builds upx
-# copy .\UPX\prebuilt\upx.exe into .\GenP\ to skip MSYS2 download and upx compilation
+- downloads AutoIt and SciTE
 
 - patches wintrust.dll
 
