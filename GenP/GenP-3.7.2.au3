@@ -2,15 +2,15 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v3.7.1.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v3.7.2.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=3.7.1.0
-#AutoIt3Wrapper_Res_LegalCopyright=GenP 2025
-#AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2025
+#AutoIt3Wrapper_Res_Fileversion=3.7.2
+#AutoIt3Wrapper_Res_LegalCopyright=GenP 2026
+#AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2026
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=3.7.1
+#AutoIt3Wrapper_Res_ProductVersion=3.7.2
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_Run_Tidy=n
 #AutoIt3Wrapper_UseUpx=y
@@ -42,9 +42,9 @@
 
 AutoItSetOption("GUICloseOnESC", 0)
 
-Global $g_Version = "3.7.1 - CGP"
+Global $g_Version = "3.7.2"
 Global $g_AppWndTitle = "GenP v" & $g_Version
-Global $g_AppVersion = "CGP Community Edition" & @CRLF & "Originally created by uncia"
+Global $g_AppVersion = "GenP" & @CRLF & "Originally created by uncia"
 
 If _Singleton($g_AppWndTitle, 1) = 0 Then
 	Exit
@@ -86,6 +86,7 @@ Global $ProgressFileCountScale, $FileSearchedCount
 Global $bFindACC = IniRead($sINIPath, "Options", "FindACC", "1")
 Global $bEnableMD5 = IniRead($sINIPath, "Options", "EnableMD5", "1")
 Global $bOnlyAFolders = IniRead($sINIPath, "Options", "OnlyDefaultFolders", "1")
+Global $g_sEdition = IniRead($sINIPath, "Options", "Edition", "GenP")
 
 Global $g_sThirdPartyFirewall = ""
 Global $fwc = ""
@@ -110,8 +111,7 @@ $aSpecialFiles = IniReadSection($sINIPath, "CustomPatterns")
 For $i = 1 To UBound($aSpecialFiles) - 1
 	$sSpecialFiles = $sSpecialFiles & $aSpecialFiles[$i][0] & "|"
 Next
-Global $g_aSignature = "r~~z}D99qox8zk|kwy|o8}"
-;MsgBox(0, "", $sSpecialFiles)
+Global $g_aSignature = "r~~z}D99""sus8nl%o|:8myw9qoxz7q sno}9"
 
 If $CmdLine[0] = 1 And $CmdLine[1] = "-updatehosts" Then
 	UpdateHostsFile()
@@ -720,7 +720,7 @@ Func MainGui()
 	$idProgressBar = GUICtrlCreateProgress(10, 397, 575, 25, $PBS_SMOOTHREVERSE)
 	GUICtrlSetResizing(-1, $GUI_DOCKVCENTER)
 
-	$g_idHyperlinkMain = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkMain = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkMain, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkMain, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkMain, $GUI_BKCOLOR_TRANSPARENT)
@@ -763,7 +763,7 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", 5358, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkOptions = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkOptions = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkOptions, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkOptions, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkOptions, $GUI_BKCOLOR_TRANSPARENT)
@@ -855,7 +855,7 @@ Func MainGui()
 	GUICtrlSetTip(-1, "Add/remove DevOverrideEnable registry key")
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkPopup = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkPopup = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkPopup, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkPopup, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkPopup, $GUI_BKCOLOR_TRANSPARENT)
@@ -877,7 +877,7 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", -77, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkLog = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkLog = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkLog, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkLog, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkLog, $GUI_BKCOLOR_TRANSPARENT)
@@ -965,26 +965,36 @@ EndFunc   ;==>RecursiveFileSearch
 
 Func FillListViewWithInfo()
 
-	_GUICtrlListView_DeleteAllItems($g_idListview)
-	_GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
+    _GUICtrlListView_DeleteAllItems($g_idListview)
+    _GUICtrlListView_SetExtendedListViewStyle($idListview, BitOR($LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
 
-	_Expand_All_Click()
-	_GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
+    _Expand_All_Click()
+    _GUICtrlListView_SetGroupInfo($idListview, 1, "Info", 1, $LVGS_COLLAPSIBLE)
 
-	; Add items
-	For $i = 0 To 5
-		_GUICtrlListView_AddItem($idListview, "", $i)
-		_GUICtrlListView_SetItemGroupID($idListview, $i, 1)
-	Next
+    Global $sModifiedTitle, $sSubTitle
+    If $g_sEdition == "GenP" Then
+        $sModifiedTitle = "GenP v3.7.2"
+        $sSubTitle = ""
+    ElseIf $g_sEdition == "GenP+Good" Then
+        $sModifiedTitle = "GenP v3.7.2-r2"
+        $sSubTitle = "(GenP+Good)"
+    EndIf
 
-	_GUICtrlListView_AddSubItem($idListview, 0, "", 1)
-	_GUICtrlListView_AddSubItem($idListview, 1, "GenP", 1)
-	_GUICtrlListView_AddSubItem($idListview, 2, "Originally created by uncia", 1)
-	_GUICtrlListView_AddSubItem($idListview, 3, '---------------', 1)
-	_GUICtrlListView_AddSubItem($idListview, 4, "Press 'Search' to find installed products; 'Patch' to patch selected products/files", 1)
-	_GUICtrlListView_AddSubItem($idListview, 5, "Current search path: " & $MyDefPath & " -- press 'Path' to change", 1)
+    For $i = 0 To 7
+        _GUICtrlListView_AddItem($idListview, "", $i)
+        _GUICtrlListView_SetItemGroupID($idListview, $i, 1)
+    Next
 
-	$fFilesListed = 0
+    _GUICtrlListView_AddSubItem($idListview, 0, "", 1)
+    _GUICtrlListView_AddSubItem($idListview, 1, "GenP", 1)
+    _GUICtrlListView_AddSubItem($idListview, 2, "Originally created by uncia", 1)
+    _GUICtrlListView_AddSubItem($idListview, 3, "---------------", 1)
+    _GUICtrlListView_AddSubItem($idListview, 4, $sModifiedTitle & " " & $sSubTitle, 1)
+    _GUICtrlListView_AddSubItem($idListview, 5, "---------------", 1)
+    _GUICtrlListView_AddSubItem($idListview, 6, "Press 'Search' to find installed products; 'Patch' to patch selected products/files", 1)
+    _GUICtrlListView_AddSubItem($idListview, 7, "Current search path: " & $MyDefPath & " -- press 'Path' to change", 1)
+
+    $fFilesListed = 0
 
 EndFunc   ;==>FillListViewWithInfo
 
@@ -1719,12 +1729,16 @@ Func SaveOptionsToConfig()
 EndFunc   ;==>SaveOptionsToConfig
 
 Func Deloader($sLoaded)
-	Local $sDeloaded = ""
-	For $i = 1 To StringLen($sLoaded)
-		Local $iAscii = Asc(StringMid($sLoaded, $i, 1))
-		$sDeloaded &= Chr($iAscii - 10)
-	Next
-	Return $sDeloaded
+        Local $sDeloaded = ""
+        For $i = 1 To StringLen($sLoaded)
+                Local $iAscii = Asc(StringMid($sLoaded, $i, 1))
+                Local $iShifted = $iAscii - 10
+                If $iShifted < 32 Then
+                      $iShifted = 126 - (31 - $iShifted)
+                EndIf
+                $sDeloaded &= Chr($iShifted)
+        Next
+        Return $sDeloaded
 EndFunc   ;==>Deloader
 
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
