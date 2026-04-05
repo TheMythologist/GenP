@@ -2,15 +2,15 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v3.6.9.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v3.7.0.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=3.6.9.0
+#AutoIt3Wrapper_Res_Fileversion=3.7.0.0
 #AutoIt3Wrapper_Res_LegalCopyright=GenP 2025
 #AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2025
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=3.6.9
+#AutoIt3Wrapper_Res_ProductVersion=3.7.0
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_Run_Tidy=n
 #AutoIt3Wrapper_UseUpx=y
@@ -42,7 +42,7 @@
 
 AutoItSetOption("GUICloseOnESC", 0)
 
-Global $g_Version = "3.6.9 - CGP"
+Global $g_Version = "3.7.0 - CGP"
 Global $g_AppWndTitle = "GenP v" & $g_Version
 Global $g_AppVersion = "CGP Community Edition" & @CRLF & "Originally created by uncia"
 
