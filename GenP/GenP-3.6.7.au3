@@ -2,19 +2,19 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v3.6.6.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v3.6.7.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=3.6.6.0
+#AutoIt3Wrapper_Res_Fileversion=3.6.7.0
 #AutoIt3Wrapper_Res_LegalCopyright=GenP 2025
 #AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2025
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=3.6.6
-#AutoIt3Wrapper_Run_Tidy=n
+#AutoIt3Wrapper_Res_ProductVersion=3.6.7
 #AutoIt3Wrapper_Run_Au3Stripper=y
-#AutoIt3Wrapper_UseX64=y
+#AutoIt3Wrapper_Run_Tidy=n
 #AutoIt3Wrapper_UseUpx=y
+#AutoIt3Wrapper_UseX64=y
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 
 #include <Array.au3>
@@ -40,9 +40,9 @@
 #include <WinAPI.au3>
 #include <WinAPIProc.au3>
 
-AutoItSetOption("GUICloseOnESC", 0)  ;1=ESC closes, 0=ESC won't close
+AutoItSetOption("GUICloseOnESC", 0)
 
-Global $g_Version = "3.6.6 - CGP"
+Global $g_Version = "3.6.7 - CGP"
 Global $g_AppWndTitle = "GenP v" & $g_Version
 Global $g_AppVersion = "CGP Community Edition" & @CRLF & "Originally created by uncia"
 
@@ -64,7 +64,6 @@ Global $sRemoveAGSText, $idLabelRemoveAGS, $sCleanFirewallText, $idLabelCleanFir
 Global $sRuntimeInstallerText, $idLabelRuntimeInstaller, $idBtnToggleRuntimeInstaller, $sWinTrustText, $idLabelWinTrust, $idBtnToggleWinTrust, $idBtnDevOverride
 Global $idBtnAGSInfo, $idBtnFirewallInfo, $idBtnHostsInfo, $idBtnRuntimeInfo, $idBtnWintrustInfo
 Global $g_idHyperlinkMain, $g_idHyperlinkOptions, $g_idHyperlinkPopup, $g_idHyperlinkLog
-;Global $idBtnCleanFirewall, $idBtnEnableDisableWF
 
 Global $sINIPath = @ScriptDir & "\config.ini"
 If Not FileExists($sINIPath) Then
@@ -106,10 +105,8 @@ If Not @error Then
 		$TargetFileList[$i - 1] = StringReplace($tTargetFileList[$i][1], '"', "")
 	Next
 EndIf
-;_ArrayDisplay($TargetFileList, "TargetFileList")
 
 $aSpecialFiles = IniReadSection($sINIPath, "CustomPatterns")
-;_ArrayDisplay($aSpecialFiles)
 For $i = 1 To UBound($aSpecialFiles) - 1
 	$sSpecialFiles = $sSpecialFiles & $aSpecialFiles[$i][0] & "|"
 Next
@@ -132,7 +129,6 @@ If FileExists(@WindowsDir & "\System32\drivers\etc\hosts.bak") Then
 EndIf
 
 While 1
-
 	Local $bHostsbakExistsNow
 	If FileExists(@WindowsDir & "\System32\drivers\etc\hosts.bak") Then
 		$bHostsbakExistsNow = True
@@ -345,12 +341,9 @@ While 1
 			GUICtrlSetState($idBtnWintrustInfo, 64)
 
 		Case $idMsg = $idButtonCustomFolder     ; Select Custom Path
-
 			ToggleLog(0)
-
 			MyFileOpenDialog()
 			_Expand_All_Click()
-
 			If $fFilesListed = 0 Then
 				GUICtrlSetState($idBtnCure, 128)
 				GUICtrlSetState($idBtnDeselectAll, 128)
@@ -476,9 +469,7 @@ While 1
 				LogWrite(1, "This GenP build does not support ARM binaries, only x64.")
 			EndIf
 
-
 			ToggleLog(1)
-
 			GUICtrlSetState($hLogTab, $GUI_SHOW)
 
 		Case $idMsg = $idBtnRestore
@@ -665,7 +656,6 @@ While 1
 
 		Case $idMsg = $idBtnWintrustInfo
 			ShowInfoPopup("Avoid popups by ' trusting' each app. Uses a modified DLL + registry edit for allowing DLL redirection. Trust/Untrust each app or add/remove the reg key as needed. Reg key is auto-added when trusting apps." & @CRLF & @CRLF & "Shout out Team V.R !")
-
 	EndSelect
 WEnd
 
@@ -730,10 +720,10 @@ Func MainGui()
 	$idProgressBar = GUICtrlCreateProgress(10, 397, 575, 25, $PBS_SMOOTHREVERSE)
 	GUICtrlSetResizing(-1, $GUI_DOCKVCENTER)
 
-	$g_idHyperlinkMain = GUICtrlCreateLabel("gen.paramore.su", (595 - 80) / 2, 483, 80, 16, BitOR($SS_CENTER, $SS_NOTIFY))
-	;GUICtrlSetFont($g_idHyperlinkMain, 10, 400, 0, "Arial")
-	;GUICtrlSetColor($g_idHyperlinkMain, 0x000000)
-	;GUICtrlSetBkColor($g_idHyperlinkMain, $GUI_BKCOLOR_TRANSPARENT)
+	$g_idHyperlinkMain = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkMain, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkMain, 0x000000)
+	GUICtrlSetBkColor($g_idHyperlinkMain, $GUI_BKCOLOR_TRANSPARENT)
 	GUICtrlSetCursor($g_idHyperlinkMain, 0)
 
 	GUICtrlCreateTabItem("")
@@ -773,7 +763,9 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", 5358, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkOptions = GUICtrlCreateLabel("gen.paramore.su", (595 - 80) / 2, 483, 80, 16, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkOptions = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkOptions, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkOptions, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkOptions, $GUI_BKCOLOR_TRANSPARENT)
 	GUICtrlSetCursor($g_idHyperlinkOptions, 0)
 
@@ -863,7 +855,9 @@ Func MainGui()
 	GUICtrlSetTip(-1, "Add/remove DevOverrideEnable registry key")
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkPopup = GUICtrlCreateLabel("gen.paramore.su", (595 - 80) / 2, 483, 80, 16, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkPopup = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkPopup, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkPopup, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkPopup, $GUI_BKCOLOR_TRANSPARENT)
 	GUICtrlSetCursor($g_idHyperlinkPopup, 0)
 
@@ -883,7 +877,9 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", -77, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkLog = GUICtrlCreateLabel("gen.paramore.su", (595 - 80) / 2, 483, 80, 16, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkLog = GUICtrlCreateLabel("gen.paramore.su", (595 - 160) / 2, 483, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetFont($g_idHyperlinkLog, 9, 400, 0, "Segoe UI")
+	GUICtrlSetColor($g_idHyperlinkLog, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkLog, $GUI_BKCOLOR_TRANSPARENT)
 	GUICtrlSetCursor($g_idHyperlinkLog, 0)
 
