@@ -1,5 +1,8 @@
 # GenP — Adobe CC Universal Patcher (Open Source)
 
+[![Latest release](https://img.shields.io/github/v/release/TheMythologist/GenP)](https://github.com/TheMythologist/GenP/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/TheMythologist/GenP/total)](https://github.com/TheMythologist/GenP/releases)
+
 > **This repository is strictly for educational and archival purposes only.**
 
 GenP (Generic Patcher) is an open-source Adobe patcher written in AutoIt that applies binary hex patches to Adobe Creative Cloud application files, modifying their licensing behavior. It supports Photoshop, Illustrator, Premiere Pro, After Effects, Acrobat, Lightroom, and the rest of the CC suite on Windows 10 and 11.
