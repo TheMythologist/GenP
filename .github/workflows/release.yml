@@ -70,6 +70,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Verify third-party binaries
+        run: python verify_binaries.py "${{ matrix.version }}"
+
       - name: Build ${{ matrix.version }}
         shell: pwsh
         run: |

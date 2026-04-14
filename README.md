@@ -65,6 +65,26 @@ On **April 30, 2025**, Reddit pulled the plug on r/GenP, citing copyright violat
 - **GitHub mirrors** — source code and binary archives
 - [**wiki.dbzer0.com**](https://wiki.dbzer0.com/genp-guides/) — the go-to guide and troubleshooting wiki
 
+## Binary Verification
+
+Each version directory includes two third-party binaries. Neither is produced by this repository — they come from the upstream GenP patch developers. To ensure they haven't been tampered with, they are verified against their official sources:
+
+| Binary | Source | Verification method |
+| ------ | ------ | ------------------- |
+| `upx-*-win64.zip` | [github.com/upx/upx/releases](https://github.com/upx/upx/releases) | SHA-256 compared against the matching GitHub release |
+| `wintrust.dll` | Microsoft Windows (stock, unpatched) | SHA-256 looked up in [winbindex](https://winbindex.m417z.com/) to confirm it is a known Microsoft-signed binary |
+
+The `wintrust.dll` in the repository is the **unmodified** Microsoft DLL. It gets patched at build time by `patch_wintrust.ps1` (two bytes at offsets `0x1C86`–`0x1C87`).
+
+**Verify locally:**
+
+```
+python verify_binaries.py          # check all versions
+python verify_binaries.py v4.0.0   # check a specific version
+```
+
+This check also runs automatically in CI before every release build.
+
 ## Project Structure
 
 Each version lives in its own directory (e.g. `v3.7.2/`):
