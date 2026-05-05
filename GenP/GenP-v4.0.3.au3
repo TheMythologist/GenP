@@ -2,15 +2,15 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v4.0.2.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v4.0.3.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=4.0.2
+#AutoIt3Wrapper_Res_Fileversion=4.0.3
 #AutoIt3Wrapper_Res_LegalCopyright=GenP 2026
 #AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2026
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=4.0.2
+#AutoIt3Wrapper_Res_ProductVersion=4.0.3
 #AutoIt3Wrapper_Res_Field=ID|GenP-%date%-%time%
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_Run_Tidy=n
@@ -44,7 +44,7 @@
 
 AutoItSetOption("GUICloseOnESC", 0)
 
-Global $g_Version = "4.0.2"
+Global $g_Version = "4.0.3"
 Global $g_AppWndTitle = "GenP v" & $g_Version
 Global $g_AppVersion = "GenP" & @CRLF & "Originally created by uncia"
 
@@ -1249,6 +1249,7 @@ While 1
 			$g_sWinTrustPath = $sSelected
 			GUICtrlSetData($idLabelTrustPath, "Path: " & $g_sWinTrustPath)
 			IniWrite($sINIPath, "Options", "WinTrustPath", $g_sWinTrustPath)
+			_PinCustomDomainListURLLast()
 			MemoWrite(@CRLF & "WinTrust path set to: " & $g_sWinTrustPath)
 			LogWrite(1, "WinTrust path changed to: " & $g_sWinTrustPath)
 
@@ -1784,7 +1785,7 @@ Func FillListViewWithInfo()
 	_GUICtrlListView_AddColumn($g_idListview, "", 0)
 	_GUICtrlListView_AddColumn($g_idListview, "", 571, 2)
 
-	Local $sTitle = "GenP v4.0.2", $sOptionsLine = ""
+	Local $sTitle = "GenP v4.0.3", $sOptionsLine = ""
 	If Number($bEnableGood1) Then $sOptionsLine &= "Good1 patch enabled"
 	If Number($bShowBetaApps) Then
 		$sOptionsLine &= ($sOptionsLine <> "" ? " / " : "") & "Beta apps included"
@@ -2584,7 +2585,7 @@ Func MyGlobalPatternSearch($MyFileToParse)
 	Local $sExt = StringRegExpReplace($sFileName, "^.*\.", "")
 	Local $sLogSuffix = " - using Default/Custom Patterns"
 	MemoWrite(@CRLF & $MyFileToParse & @CRLF & "---" & @CRLF & "Preparing to Analyze" & @CRLF & "---" & @CRLF & "*****")
-	If StringLower($sExt) <> "json" Then LogWrite(1, "Checking File: " & $sFileName & $sLogSuffix)
+	LogWrite(1, "Checking File: " & $sFileName & $sLogSuffix)
 	If StringLower($sFileName) = "runtimeinstaller.dll" Then
 		If Not _AutoUnpackIfRuntimeInstaller($MyFileToParse) Then
 			MemoWrite(@CRLF & $MyFileToParse & @CRLF & "---" & @CRLF & "Auto-unpack failed, skipping file." & @CRLF)
@@ -2605,9 +2606,6 @@ Func MyGlobalPatternSearch($MyFileToParse)
 		ElseIf $iUxpResult = 2 Then
 			LogWrite(1, $MyFileToParse)
 			LogWrite(1, "File already patched by GenP" & @CRLF)
-			$g_bUxpHandledFile = True
-			Return
-		ElseIf $iUxpResult = 3 Then
 			$g_bUxpHandledFile = True
 			Return
 		EndIf
@@ -2665,8 +2663,6 @@ Func ExecuteSearchPatterns($FileName, $DefaultPatterns, $MyFileToParse)
 					MsgBox($MB_SYSTEMMODAL, "Error", "Pattern Error in config.ini:" & $sPattern & @CRLF & $sSearch & @CRLF & $sReplace)
 					Exit
 				EndIf
-
-				LogWrite(1, "Searching for: " & $sPattern & ": " & $sSearch)
 
 				MyRegExpGlobalPatternSearch($MyFileToParse, $sSearch, $sReplace, $sPattern)
 
@@ -2768,7 +2764,7 @@ Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToRepla
 				ConsoleWrite($PatternName & "---" & @TAB & $sWildcardSearchPattern & "	" & @CRLF)
 				ConsoleWrite($PatternName & "R" & "--" & @TAB & $sFinalReplacePattern & "	" & @CRLF)
 				MemoWrite(@CRLF & $FileToParse & @CRLF & "---" & @CRLF & $PatternName & @CRLF & "---" & @CRLF & $sWildcardSearchPattern & @CRLF & $sFinalReplacePattern)
-				LogWrite(1, "Replacing with: " & $sFinalReplacePattern)
+				LogWrite(1, $PatternName & ": Replacing with: " & $sFinalReplacePattern)
 
 			Else
 				ConsoleWrite($PatternName & "---" & @TAB & "No" & "	" & @CRLF)
@@ -2961,6 +2957,19 @@ Func _QueueStateWrite($sPath, $sApp, $sMD5Orig, $sMD5Patched, $sStatus)
 	EndIf
 EndFunc
 
+Func _RecordDevOverrideStateToLedger()
+	Local $sRegKey = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+	Local $iRegVal = RegRead($sRegKey, "DevOverrideEnable")
+	Local $sLedgerVal = (Not @error And $iRegVal = 1) ? "1" : "0"
+	IniWrite($patchStatesINI, "Info", "DevOverrideEnable", $sLedgerVal)
+EndFunc
+
+Func _PinCustomDomainListURLLast()
+    Local $sLastURL = IniRead($sINIPath, "Options", "CustomDomainListURL", $sDefaultDomainListURL)
+    IniDelete($sINIPath, "Options", "CustomDomainListURL")
+    IniWrite($sINIPath, "Options", "CustomDomainListURL", $sLastURL)
+EndFunc
+
 Func _FlushStateQueue()
 	Local $iN = UBound($g_aStateQueue)
 	If $iN = 0 And $g_mAppPrimaryExe.Count = 0 Then Return
@@ -3090,6 +3099,7 @@ Func _FlushStateQueue()
 	IniWrite($patchStatesINI, "Info", "GenPVersion",   $g_Version)
 	IniWrite($patchStatesINI, "Info", "ConfigVersion", $ConfigVerVar)
 	IniWrite($patchStatesINI, "Info", "LastRun",       @YEAR & "-" & @MON & "-" & @MDAY & " " & @HOUR & ":" & @MIN & ":" & @SEC)
+	_RecordDevOverrideStateToLedger()
 
 	_MaintainInisAlphebeticalWithSpacing($patchStatesINI)
 
@@ -3467,6 +3477,7 @@ Func _CreateInitialPatchStates()
 	IniWrite($patchStatesINI, "Info", "ConfigVersion", $ConfigVerVar)
 	IniWrite($patchStatesINI, "Info", "Created",       _NowCalc())
 	IniWrite($patchStatesINI, "Info", "Origin",        "create-new")
+	_RecordDevOverrideStateToLedger()
 
 	_MaintainInisAlphebeticalWithSpacing($patchStatesINI)
 
@@ -3626,17 +3637,11 @@ Func _PatchAdobeUXPComponent($sFilePath)
 	Local $bData = FileRead($hFile)
 	FileClose($hFile)
 	If BinaryLen($bData) = 0 Then Return 0
-
 	Local $sFileName = StringLower(StringRegExpReplace($sFilePath, "^.*\\", ""))
-
-	If StringRegExp($sFileName, "(?i)\.json$") Then Return 3
-
 	Local $bIsJs = StringRegExp($sFileName, "(?i)\.js$")
 	Local $bModified = False
 	Local $bAlready  = False
-
 	Local $sData = BinaryToString($bData, 1)
-
 	If $bIsJs Then
 		If StringInStr($sData, "XelationshipProfile") Then
 			$bAlready = True
@@ -3646,12 +3651,10 @@ Func _PatchAdobeUXPComponent($sFilePath)
 			LogWrite(1, "JS5 in-code patch bypass applied to " & $sFileName)
 		EndIf
 	EndIf
-
 	If Not $bModified Then
 		If $bAlready Then Return 2
 		Return 0
 	EndIf
-
 	Local $iPrePatchSize = FileGetSize($sFilePath)
 	Local $sBak = $sFilePath & ".bak"
 	If FileExists($sBak) Then
@@ -3665,7 +3668,6 @@ Func _PatchAdobeUXPComponent($sFilePath)
 		FileMove($sFilePath, $sBak)
 	EndIf
 	FileSetAttrib($sFilePath, "-RHS")
-
 	Local $hWrite = FileOpen($sFilePath, 18)
 	If $hWrite = -1 Then
 		LogWrite(1, "UXP patch write failed (access denied?): " & $sFileName)
@@ -3674,14 +3676,12 @@ Func _PatchAdobeUXPComponent($sFilePath)
 	EndIf
 	FileWrite($hWrite, Binary($sData))
 	FileClose($hWrite)
-
 	Local $sMD5Orig = "", $sMD5New = ""
 	If $g_bCryptActive Then
 		$sMD5Orig = StringTrimLeft(String(_Crypt_HashFile($sBak,      $CALG_MD5)), 2)
 		$sMD5New  = StringTrimLeft(String(_Crypt_HashFile($sFilePath, $CALG_MD5)), 2)
 	EndIf
 	_QueueStateWrite($sFilePath, "", $sMD5Orig, $sMD5New, "Patched")
-
 	Return 1
 EndFunc
 
@@ -4046,6 +4046,13 @@ Func _SyncWinTrustFromDisk()
 	If Not IsObj($g_mWinTrustQueue) Then $g_mWinTrustQueue = ObjCreate("Scripting.Dictionary")
 	$g_mWinTrustQueue.RemoveAll()
 
+	Local $aExisting = IniReadSection($patchStatesINI, "WinTrust_Local")
+	If Not @error And IsArray($aExisting) Then
+		For $i = 1 To $aExisting[0][0]
+			$g_mWinTrustQueue.Item($aExisting[$i][0]) = $aExisting[$i][1]
+		Next
+	EndIf
+
 	Local $mRoots = ObjCreate("Scripting.Dictionary")
 	Local $iCount = _GUICtrlListView_GetItemCount($idListview)
 	For $i = 0 To $iCount - 1
@@ -4297,7 +4304,6 @@ Func _IsChecked($idControlID)
 	Return BitAND(GUICtrlRead($idControlID), $GUI_CHECKED) = $GUI_CHECKED
 EndFunc
 
-
 Func SaveOptionsToConfig()
 	If _IsChecked($idResetOnSave) Then
 		Local $iConfirm = MsgBox(BitOR($MB_YESNO, $MB_ICONEXCLAMATION), _
@@ -4385,7 +4391,7 @@ Func SaveOptionsToConfig()
 	If $g_sWinTrustPath <> "" Then
 		IniWrite($sINIPath, "Options", "WinTrustPath", $g_sWinTrustPath)
 	EndIf
-
+	_PinCustomDomainListURLLast()
 	_SnapshotOptions()
 
 	MemoWrite(@CRLF & "Options saved to config.ini.")
@@ -5928,20 +5934,18 @@ Func AddDevOverride()
 	Local $sKey = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
 	Local $sValueName = "DevOverrideEnable"
 	Local $iExpectedValue = 1
-
 	If Not IsAdmin() Then
 		MemoWrite("Error: Administrator rights required to set registry key.")
 		LogWrite(1, "Error: Administrator rights required for registry access.")
 		Return False
 	EndIf
-
 	Local $iCurrentValue = RegRead($sKey, $sValueName)
 	If @error = 0 And $iCurrentValue = $iExpectedValue Then
 		MemoWrite("Registry key " & $sValueName & " already enabled.")
 		LogWrite(1, "Registry key " & $sValueName & " already set to " & $iExpectedValue & ".")
+		IniWrite($patchStatesINI, "Info", "DevOverrideEnable", "1")
 		Return True
 	EndIf
-
 	If RegWrite($sKey, $sValueName, "REG_DWORD", $iExpectedValue) Then
 		MemoWrite("Enabled registry key " & $sValueName & " for WinTrust override.")
 		LogWrite(1, "Set registry key " & $sValueName & " = " & $iExpectedValue & ".")
@@ -5959,26 +5963,24 @@ Func RemoveDevOverride()
 	Local $sKey = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
 	Local $sValueName = "DevOverrideEnable"
 	Local $iExpectedValue = 1
-
 	If Not IsAdmin() Then
 		MemoWrite("Error: Administrator rights required to remove registry key.")
 		LogWrite(1, "Error: Administrator rights required for registry access.")
 		Return False
 	EndIf
-
 	Local $iCurrentValue = RegRead($sKey, $sValueName)
 	If @error <> 0 Then
 		MemoWrite("No registry key " & $sValueName & " found to remove.")
 		LogWrite(1, "No registry key " & $sValueName & " found.")
+		IniWrite($patchStatesINI, "Info", "DevOverrideEnable", "0")
 		Return True
 	EndIf
-
 	If $iCurrentValue <> $iExpectedValue Then
 		MemoWrite("Registry key " & $sValueName & " not enabled; no action taken.")
 		LogWrite(1, "Registry key " & $sValueName & " not set to " & $iExpectedValue & ".")
+		IniWrite($patchStatesINI, "Info", "DevOverrideEnable", "0")
 		Return True
 	EndIf
-
 	If RegDelete($sKey, $sValueName) Then
 		MemoWrite("Disabled registry key " & $sValueName & ".")
 		LogWrite(1, "Removed registry key " & $sValueName & ".")

@@ -2,11 +2,11 @@
 
 **GenP Release Information**
 
-**Version: 4.0.2**
+**Version: 4.0.3**
 
-**Release Date: 2026-04-29**
+**Release Date: 2026-05-01**
 
-**Release ID: GENP-4.0.0-20260429**
+**Release ID: GENP-4.0.3-20260501**
 
 **============================================================**
 
@@ -24,9 +24,9 @@ Search ["GenP Wiki \& Guides"](https://wiki.dbzer0.com/genp-guides/) to locate t
 
 
 
-**File:     GenP-v4.0.2.au3**
+**File:     GenP-v4.0.3.au3**
 
-**SHA256:   F83F2F1A7C6491EAC2A18452D8E851FB93E91D3962FC3A5EB55EE674E7CAB11B**
+**SHA256:   6FE14671FF6FC1EF9E613A5EE735FAABD02068A78EA7C51B6253FBD9954E3496**
 
 **IPFS CID: See official download link**
 
