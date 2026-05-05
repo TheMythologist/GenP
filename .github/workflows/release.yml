@@ -15,7 +15,7 @@ jobs:
       matrix: ${{ steps.find.outputs.matrix }}
       has_unreleased: ${{ steps.find.outputs.has_unreleased }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Find unreleased versions
         id: find
@@ -68,9 +68,9 @@ jobs:
       matrix: ${{ fromJson(needs.detect-versions.outputs.matrix) }}
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
