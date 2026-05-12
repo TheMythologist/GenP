@@ -1,5 +1,0 @@
-For automated building, run 'run_build.bat' as admin
-
-- downloads AutoIt and SciTE
-- patches wintrust.dll
-- builds GenP
