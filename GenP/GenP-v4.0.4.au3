@@ -2,15 +2,15 @@
 #RequireAdmin
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=Skull.ico
-#AutoIt3Wrapper_Outfile_x64=GenP-v4.0.3.exe
+#AutoIt3Wrapper_Outfile_x64=GenP-v4.0.4.exe
 #AutoIt3Wrapper_Res_Comment=GenP
 #AutoIt3Wrapper_Res_CompanyName=GenP
 #AutoIt3Wrapper_Res_Description=GenP
-#AutoIt3Wrapper_Res_Fileversion=4.0.3
+#AutoIt3Wrapper_Res_Fileversion=4.0.4
 #AutoIt3Wrapper_Res_LegalCopyright=GenP 2026
 #AutoIt3Wrapper_Res_LegalTradeMarks=GenP 2026
 #AutoIt3Wrapper_Res_ProductName=GenP
-#AutoIt3Wrapper_Res_ProductVersion=4.0.3
+#AutoIt3Wrapper_Res_ProductVersion=4.0.4
 #AutoIt3Wrapper_Res_Field=ID|GenP-%date%-%time%
 #AutoIt3Wrapper_Run_Au3Stripper=y
 #AutoIt3Wrapper_Run_Tidy=n
@@ -44,7 +44,7 @@
 
 AutoItSetOption("GUICloseOnESC", 0)
 
-Global $g_Version = "4.0.3"
+Global $g_Version = "4.0.4"
 Global $g_AppWndTitle = "GenP v" & $g_Version
 Global $g_AppVersion = "GenP" & @CRLF & "Originally created by uncia"
 
@@ -1785,7 +1785,7 @@ Func FillListViewWithInfo()
 	_GUICtrlListView_AddColumn($g_idListview, "", 0)
 	_GUICtrlListView_AddColumn($g_idListview, "", 571, 2)
 
-	Local $sTitle = "GenP v4.0.3", $sOptionsLine = ""
+	Local $sTitle = "GenP v4.0.4", $sOptionsLine = ""
 	If Number($bEnableGood1) Then $sOptionsLine &= "Good1 patch enabled"
 	If Number($bShowBetaApps) Then
 		$sOptionsLine &= ($sOptionsLine <> "" ? " / " : "") & "Beta apps included"
@@ -3608,7 +3608,8 @@ Func _CleanOrphanBaks(ByRef $aRestoredPaths)
 		EndIf
 	Next
 
-	Local $iRemoved = 0
+	Local $iRemoved = 0, $iKept = 0
+	Local $aKeptNames[0]
 	For $sDir In $mDirs.Keys
 		Local $hFind = FileFindFirstFile($sDir & "\*.bak")
 		If $hFind = -1 Then ContinueLoop
@@ -3617,16 +3618,33 @@ Func _CleanOrphanBaks(ByRef $aRestoredPaths)
 			If @error Then ExitLoop
 			Local $sBak = $sDir & "\" & $sName
 			If StringInStr(FileGetAttrib($sBak), "D") Then ContinueLoop
+
+			Local $sSibling = StringTrimRight($sBak, 4)
+			If FileExists($sSibling) Then
+				$iKept += 1
+				ReDim $aKeptNames[$iKept]
+				$aKeptNames[$iKept - 1] = $sBak
+				ContinueLoop
+			EndIf
+
 			If FileDelete($sBak) Then
 				$iRemoved += 1
-				LogWrite(1, "Removed backup: " & $sBak)
+				LogWrite(1, "Removed orphaned backup (no sibling file present): " & $sBak)
 			EndIf
 		WEnd
 		FileClose($hFind)
 	Next
 
 	If $iRemoved > 0 Then
-		LogWrite(1, "Cleaned " & $iRemoved & " .bak file(s) from restored folder(s).")
+		LogWrite(1, "Cleaned " & $iRemoved & " orphaned .bak file(s) from restored folder(s).")
+	EndIf
+	If $iKept > 0 Then
+		LogWrite(1, "Preserved " & $iKept & " .bak file(s) for files still patched:")
+		MemoWrite(@CRLF & "Preserved " & $iKept & " backup(s) for files still in use:")
+		For $i = 0 To UBound($aKeptNames) - 1
+			LogWrite(1, "  - " & $aKeptNames[$i])
+			MemoWrite("  - " & $aKeptNames[$i])
+		Next
 	EndIf
 	Return $iRemoved
 EndFunc

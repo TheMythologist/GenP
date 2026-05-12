@@ -2,11 +2,11 @@
 
 **GenP Release Information**
 
-**Version: 4.0.3**
+**Version: 4.0.4**
 
-**Release Date: 2026-05-01**
+**Release Date: 2026-05-06**
 
-**Release ID: GENP-4.0.3-20260501**
+**Release ID: GENP-4.0.4-20260506**
 
 **============================================================**
 
@@ -24,9 +24,9 @@ Search ["GenP Wiki \& Guides"](https://wiki.dbzer0.com/genp-guides/) to locate t
 
 
 
-**File:     GenP-v4.0.3.au3**
+**File:     GenP-v4.0.4.au3**
 
-**SHA256:   6FE14671FF6FC1EF9E613A5EE735FAABD02068A78EA7C51B6253FBD9954E3496**
+**SHA256:   842864F123840A56567922400A75AA2D0FC558D3D8E85154D8C49E0F7AB7776E**
 
 **IPFS CID: See official download link**
 
@@ -56,11 +56,11 @@ GenP scans installed Adobe applications and applies patches to supported binarie
 
 **Notes:**
 
-\- Only x64 binaries are supported
+\- Only x64 binaries are supported.
 
-\- ARM binaries are not supported
+\- ARM binaries are not supported.
 
-\- Acrobat 32-bit is not supported
+\- Acrobat 32-bit is not supported.
 
 
 
@@ -86,9 +86,9 @@ Support is only provided for official releases from project sources.
 
 **Credits:**
 
-Originally created by uncia
+Originally created by uncia.
 
-Thanks to all those involved, past, present and future
+Thanks to all those involved, past, present and future.
 
 
 
