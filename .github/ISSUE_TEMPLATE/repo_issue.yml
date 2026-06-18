@@ -1,0 +1,58 @@
+name: Repository / build issue
+description: A problem with THIS repository — its build scripts, CI, binary verification, archived files, or documentation. Not for GenP or Adobe support.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you open this issue
+
+        **This repository is strictly an archive.** It mirrors GenP source, builds it on GitHub Actions, and verifies binaries. It does **not** develop, maintain, or support the GenP patcher.
+
+        **This tracker is the WRONG place for, and these will be closed as `not planned`:**
+        - GenP can't patch an app / patch failed / "unpatched" or "unknown" files
+        - An app still asks for a license, shows "non-genuine", or won't activate
+        - Adobe install or runtime errors (e.g. **Error 304**, "installer is damaged")
+        - An Adobe app crashes, lags, or misbehaves after patching
+        - "Does it support version X?" / "When will version Y be patched?"
+        - Feature requests for the patcher (Android, macOS, a different runner, etc.)
+
+        👉 For all of the above, use the **[community wiki](https://wiki.dbzer0.com/genp-guides/)** or **[Lemmy community](https://lemmy.dbzer0.com/c/GenP)**.
+
+        **This tracker IS the right place for:**
+        - The build (`run_build.bat` / `build.ps1`) or GitHub Actions workflow fails
+        - `verify_binaries.py` reports a checksum mismatch
+        - A release asset / archived version is missing, broken, or won't download
+        - An error in the README or other repo documentation
+
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: Confirmation
+      description: Please confirm before continuing. Issues that ignore this will be closed without comment.
+      options:
+        - label: My issue is about THIS repository (its build, CI, verification, archived files, or docs) — **not** about whether GenP patches an app, license/activation problems, or Adobe errors.
+          required: true
+        - label: I have read the [README](https://github.com/TheMythologist/GenP#readme) and checked the [community wiki](https://wiki.dbzer0.com/genp-guides/).
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the repo?
+      options:
+        - Build script (run_build.bat / build.ps1)
+        - GitHub Actions / CI workflow
+        - Binary verification (verify_binaries.py / checksums)
+        - Missing or broken archived version / release asset
+        - Documentation (README, etc.)
+        - Other (explain below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem.
+    validations:
+      required: true

@@ -1,0 +1,29 @@
+# Removes the "Open a blank issue" escape hatch so every issue goes through a
+# template. This is the single biggest lever against drive-by support requests.
+blank_issues_enabled: false
+
+# Big buttons shown ABOVE the template list. Most people looking for help with
+# the patcher or with Adobe will click one of these and never file an issue.
+contact_links:
+  - name: ⚠️ GenP not patching / app won't activate / Adobe error
+    url: https://wiki.dbzer0.com/genp-guides/
+    about: >-
+      This repository is an ARCHIVE. It does not develop, maintain, or support
+      the GenP patcher. If GenP can't patch an app, asks for a license, throws
+      an install error (e.g. Error 304), or an Adobe app crashes after
+      patching, that is NOT a bug in this repo. Use the community
+      troubleshooting wiki — it is the right place and far faster.
+
+  - name: 💬 Ask the GenP community (Lemmy)
+    url: https://lemmy.dbzer0.com/c/GenP
+    about: >-
+      Questions, "doesn't work", version compatibility, feature requests for the
+      patcher, and general help belong in the community forum, where the actual
+      GenP maintainers and users are. Issues here are not a support channel.
+
+  - name: 📖 Read the README first
+    url: https://github.com/TheMythologist/GenP#readme
+    about: >-
+      What this repo is (and isn't), how builds and binary verification work,
+      and where the upstream project lives. Please read it before opening an
+      issue.
