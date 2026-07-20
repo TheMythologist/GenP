@@ -7,7 +7,6 @@ Run with: .\build.ps1 or via run_build.bat
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Default paths -- customize as needed
 $installBaseDir = Join-Path $env:SystemDrive "GenP-BuildEnv"
 $autoItInstallDir = Join-Path $installBaseDir "AutoIt"
 $autoItCoreExe = Join-Path $autoItInstallDir "install\AutoIt3_x64.exe"
@@ -32,7 +31,6 @@ if (-not (Test-Path $releaseDir)) {
     New-Item -Path $releaseDir -ItemType Directory -Force | Out-Null
 }
 
-# Download URLs -- update as needed
 $autoItUrl = "https://www.autoitscript.com/files/autoit3/autoit-v3.zip"
 $sciTEUrl = "https://www.autoitscript.com/autoit3/scite/download/SciTE4AutoIt3_Portable.zip"
 
@@ -64,6 +62,30 @@ function Get-MD5Hash {
     $md5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvider
     $hash = [System.BitConverter]::ToString($md5.ComputeHash([System.IO.File]::ReadAllBytes($filePath))).Replace("-", "").ToUpper()
     return $hash
+}
+
+function Append-SelfHashTrailer {
+    param ([Parameter(Mandatory = $true)][string]$Exe)
+    $magic      = "GENP_SELFHASH_01"
+    $trailerLen = 80
+    if (-not (Test-Path -LiteralPath $Exe)) {
+        Write-Error "Append-SelfHashTrailer: exe not found: $Exe"
+        return $false
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($Exe)
+    if ($bytes.Length -gt $trailerLen) {
+        $tail16 = [byte[]]($bytes[($bytes.Length - $trailerLen)..($bytes.Length - $trailerLen + 15)])
+        if ([System.Text.Encoding]::ASCII.GetString($tail16) -eq $magic) {
+            Write-Host "   Trailer already present - skipping."
+            return $true
+        }
+    }
+    $bodyHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+    $bodyHex  = -join ($bodyHash | ForEach-Object { $_.ToString("x2") })
+    $trailer = [System.Text.Encoding]::ASCII.GetBytes($magic + $bodyHex)
+    [System.IO.File]::WriteAllBytes($Exe, [byte[]]($bytes + $trailer))
+    Write-Host "   Appended $trailerLen-byte trailer (SHA256 body = $bodyHex)" -ForegroundColor Green
+    return $true
 }
 
 function Get-UserConfirmation {
@@ -429,6 +451,14 @@ try {
         Write-Host " - Warning: Found multiple GenP*.exe files in $genpDir - $exeNames. Using most recent: $($exeFiles[0].Name)" -ForegroundColor Yellow
     }
     $genpExe = $exeFiles[0].FullName
+    Write-Host ""
+    Write-Host " - Appending self-hash trailer..." -ForegroundColor Cyan
+    if (-not (Append-SelfHashTrailer -Exe $genpExe)) {
+        Write-Error "Failed to append self-hash trailer to $genpExe"
+        Stop-Transcript | Out-Null
+        exit 1
+    }
+
     $releaseExe = Join-Path $releaseDir $exeFiles[0].Name
     Move-Item -Path $genpExe -Destination $releaseExe -Force -ErrorAction Stop
     if (-not (Test-Path $releaseExe)) {
@@ -438,6 +468,45 @@ try {
     }
     Write-Host " - GenP executable built at $releaseExe" -ForegroundColor Green
     Remove-Item -Path (Join-Path $genpDir "GenP*_stripped.au3") -Force -ErrorAction SilentlyContinue
+
+    Write-Host ""
+    Write-Host " - Computing release hashes..." -ForegroundColor Cyan
+    $sha256 = (Get-FileHash -Path $releaseExe -Algorithm SHA256).Hash
+    $md5    = Get-MD5Hash $releaseExe
+    $sizeBytes = (Get-Item $releaseExe).Length
+    $hashFile = "$releaseExe.hashes.txt"
+    @(
+        "File:   $(Split-Path -Leaf $releaseExe)"
+        "Size:   $sizeBytes bytes"
+        "SHA256: $sha256"
+        "MD5:    $md5"
+        "Built:  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    ) | Set-Content -Path $hashFile -Encoding UTF8
+    Write-Host "   SHA256: $sha256" -ForegroundColor Green
+    Write-Host "   MD5:    $md5" -ForegroundColor Green
+    Write-Host "   Size:   $sizeBytes bytes" -ForegroundColor Green
+    Write-Host "   Saved to $(Split-Path -Leaf $hashFile)" -ForegroundColor Green
+
+    Write-Host ""
+    Write-Host " - Computing source hashes..." -ForegroundColor Cyan
+    $au3Sha256    = (Get-FileHash -Path $au3File -Algorithm SHA256).Hash
+    $au3Md5       = Get-MD5Hash $au3File
+    $au3SizeBytes = (Get-Item $au3File).Length
+    $au3Saved     = (Get-Item $au3File).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+    $au3HashFile  = "$au3File.hashes.txt"
+    @(
+        "File:   $(Split-Path -Leaf $au3File)"
+        "Size:   $au3SizeBytes bytes"
+        "SHA256: $au3Sha256"
+        "MD5:    $au3Md5"
+        "Saved:  $au3Saved"
+        "Built:  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    ) | Set-Content -Path $au3HashFile -Encoding UTF8
+    Write-Host "   SHA256: $au3Sha256" -ForegroundColor Green
+    Write-Host "   MD5:    $au3Md5" -ForegroundColor Green
+    Write-Host "   Size:   $au3SizeBytes bytes" -ForegroundColor Green
+    Write-Host "   Saved:  $au3Saved" -ForegroundColor Green
+    Write-Host "   Saved to $(Split-Path -Leaf $au3HashFile)" -ForegroundColor Green
 }
 catch {
     Write-Host "Failed to build AutoIt script: $_" -ForegroundColor Red
