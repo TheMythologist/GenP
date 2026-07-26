@@ -6,12 +6,16 @@ Please monitor Mitmproxy logs regularly and update the regexes or blocklists acc
 """
 from mitmproxy import http, ctx
 from pathlib import Path
-import re, datetime, sys
+import re, datetime, sys, os
 
 LOCAL_HTML_PATH = Path(r"C:\adobe_fixes\genuine_ok_auto_close.html")
 ENABLE_BODY_INSPECTION = True
 PRINT_TO_CONSOLE = True
 USE_COLOR = True
+
+MAX_TARGETED_APPS = 4
+RUN_GLOBAL_SCAN = True
+TARGETED_APPS = []
 
 _ngl_oobe_completed = False
 
@@ -75,6 +79,34 @@ ANSI = {
     "red":    "\x1b[31m",
     "cyan":   "\x1b[36m",
 }
+
+def _load_targeting():
+    global RUN_GLOBAL_SCAN, TARGETED_APPS
+    RUN_GLOBAL_SCAN, TARGETED_APPS = True, []
+    try:
+        mode = os.environ.get("GENP_PROXYMODE", "Global").strip().upper()
+        if mode not in ("TARGET", "TARGETED"):
+            return
+        apps = []
+        for part in os.environ.get("GENP_PROXYAPPS", "").split(","):
+            tok = part.strip().lower().replace(".exe", "").replace(" ", "")
+            if tok and tok != "global":
+                apps.append(tok)
+        if 1 <= len(apps) <= MAX_TARGETED_APPS:
+            RUN_GLOBAL_SCAN, TARGETED_APPS = False, apps
+    except Exception:
+        RUN_GLOBAL_SCAN, TARGETED_APPS = True, []
+
+def _is_request_allowed_by_policy(flow: http.HTTPFlow) -> bool:
+    if RUN_GLOBAL_SCAN:
+        return True
+    try:
+        ua = (flow.request.headers.get("User-Agent", "") or "").lower().replace(" ", "")
+    except Exception:
+        return False
+    if not ua:
+        return False
+    return any(app in ua for app in TARGETED_APPS)
 
 def _now_iso():
     return datetime.datetime.utcnow().isoformat() + "Z"
@@ -144,9 +176,18 @@ def load(l):
             ctx.options.termlog_verbosity = "error"
     except Exception:
         pass
+    _load_targeting()
+    if PRINT_TO_CONSOLE:
+        if RUN_GLOBAL_SCAN:
+            print("[targeting] MODE = GLOBAL - recommended")
+        else:
+            print(f"[targeting] MODE = TARGETED apps={TARGETED_APPS} "
+                  f"(best-effort; GLOBAL is recommended for full coverage)")
 
 def request(flow: http.HTTPFlow) -> None:
     try:
+        if not _is_request_allowed_by_policy(flow):
+            return
         host = (flow.request.host or "").lower()
         url  = (flow.request.pretty_url or "").lower()
         if "workflow.licenses.adobe.com" in host and "starttrial" in url:
@@ -158,6 +199,8 @@ def request(flow: http.HTTPFlow) -> None:
 def response(flow: http.HTTPFlow) -> None:
     global _ngl_oobe_completed
     try:
+        if not _is_request_allowed_by_policy(flow):
+            return
         host = (flow.request.host or "").lower()
         path = (flow.request.path or "").lower()
         url  = (flow.request.pretty_url or "").lower()
@@ -218,7 +261,6 @@ def response(flow: http.HTTPFlow) -> None:
             if "text/html" in ctype:
                 _serve_local_html(flow, "NGL_WORKFLOW_HTML_BLOCKED")
                 return
-
 
         if GENERIC_POPUP_RE.search(path):
             _console("GENERIC_POPUP_SEEN", host, url)

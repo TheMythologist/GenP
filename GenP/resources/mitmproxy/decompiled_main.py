@@ -3,7 +3,7 @@
 # Bytecode version: 3.13.0rc3 (3571)
 # Source timestamp: 1970-01-01 00:00:00 UTC (0)
 
-# ***<module>: Failure: Different bytecode
+# ***<module>: Failure: Different control flow
 """\nGenP - Adobe Previous Version Downloader (Windows)\nDownloads offline install packages for any version of an Adobe CC app\nand stages them alongside the HDBox setup.exe so the user can install\nwith a single double-click.\n\nUsage examples:\n  python main.py\n  python main.py -s PHSP -v 25.9.1\n  python main.py -s PPRO -v 24.6.3 -d C:\\AdobeInstallers\n  python main.py -s PHSP -v 25.9.1 --skipExisting\n"""
 import argparse
 import json
@@ -37,7 +37,8 @@ def _find_setup_exe():
             return bundled
     return 'C:\\Program Files (x86)\\Common Files\\Adobe\\Adobe Desktop Common\\HDBox\\Set-up.exe'
 HDBOX_SETUP_EXE = _find_setup_exe()
-DOWNLOADS_DIR = os.path.join(GENP_DIR, 'Adobe Downloads')
+GENP_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+DOWNLOADS_DIR = os.environ.get('GENP_DOWNLOADS_DIR') or os.path.join(GENP_DIR, 'Adobe Downloads')
 DRIVER_XML = '<DriverInfo>\n    <ProductInfo>\n        <Name>Adobe {name}</Name>\n        <SAPCode>{sapCode}</SAPCode>\n        <CodexVersion>{version}</CodexVersion>\n        <Platform>{installPlatform}</Platform>\n        <EsdDirectory>./{sapCode}</EsdDirectory>\n        <Dependencies>\n{dependencies}\n        </Dependencies>\n    </ProductInfo>\n    <RequestInfo>\n        <InstallDir>C:\\Program Files\\Adobe</InstallDir>\n        <InstallLanguage>{language}</InstallLanguage>\n    </RequestInfo>\n</DriverInfo>\n'
 DRIVER_XML_DEPENDENCY = '         <Dependency>\n                <SAPCode>{sapCode}</SAPCode>\n                <BaseVersion>{version}</BaseVersion>\n                <EsdDirectory>./{sapCode}</EsdDirectory>\n            </Dependency>'
 ADOBE_REQ_HEADERS = {'X-Adobe-App-Id': 'accc-apps-panel-desktop', 'User-Agent': 'Adobe Application Manager 2.0', 'X-Api-Key': 'CC_HD_ESD_1_0', 'Cookie': 'fg=' + ''.join((random.choice(string.ascii_uppercase + string.digits) for _ in range(26))) + '======'}
@@ -90,16 +91,15 @@ def download_file(url, product_dir, s, v, name=None):
     total_size, response = (session.head(url, stream=True, headers=ADOBE_DL_HEADERS), int(response.headers.get('content-length', 0)))
     if args.skipExisting and os.path.isfile(file_path) and (os.path.getsize(file_path) == total_size):
         print(f'[{s}_{v}] {name} already exists, skipping.')
+        return None
     else:
         response = session.get(url, stream=True, headers=ADOBE_REQ_HEADERS)
         block_size = 1024
         progress_bar = tqdm(total=total_size, unit='iB', unit_scale=True, desc=f'[{s}] {name[:30]}')
-        with open(file_path, 'wb') as file:
-            for data in response.iter_content(block_size):
-                pass
+        with open(file_path, 'wb') as file, progress_bar.update(len(data)), file.write(data):
+            pass
         progress_bar.close()
 def get_products():
-    # ***<module>.get_products: Failure: Different control flow
     if args.urlVersion in ['4', '5', '6']:
         selectedVersion = int(args.urlVersion)
     else:
@@ -124,7 +124,8 @@ def get_products():
                     lastv = v['productVersion']
         if lastv:
             sapCodes[p['sapCode']] = p['displayName']
-    sys.exit(f'\nSAP code not found: {args.sapCode}') if args.sapCode and products.get(args.sapCode.upper()) is None else None
+    if args.sapCode and products.get(args.sapCode.upper()) is None:
+            sys.exit(f'\nSAP code not found: {args.sapCode}')
     return (products, cdn, sapCodes, allowedPlatforms)
 def run_ccdl(products, cdn, sapCodes, allowedPlatforms):
     # ***<module>.run_ccdl: Failure: Compilation Error
@@ -133,10 +134,13 @@ def run_ccdl(products, cdn, sapCodes, allowedPlatforms):
         def short_name(n):
             return n.replace('Adobe ', '', 1)
         sorted_apps = sorted(sapCodes.items(), key=lambda x: short_name(x[1]))
+        print('\nAvailable apps:')
+        half = (len(sorted_apps) + 1) // 2
         for i in range(half):
             left = f'  {i + 1:>3}. {short_name(sorted_apps[i][1])}'
             right = ''
-            right = f'  {i + half + 1:>3}. {short_name(sorted_apps[i + half][1])}' if i + half < len(sorted_apps) else f'{i + half + 1:>3}'
+            if i + half < len(sorted_apps):
+                right = f'  {i + half + 1:>3}. {short_name(sorted_apps[i + half][1])}'
             print(f'{left:<48}{right}')
         if sapCode is None:
             val = input('\nEnter number: ').strip()
@@ -210,7 +214,6 @@ def run_ccdl(products, cdn, sapCodes, allowedPlatforms):
     print(f'  Folder : {workspace}')
     print(f'{'======================================================'}')
     if setup_copied:
-        print('  setup.exe (v6.5.0) staged - installs without license validation.')
         print('\n  To install:')
         print('    1. Open the folder above')
         print('    2. Right-click setup.exe -> Run as administrator')
@@ -222,11 +225,10 @@ def run_ccdl(products, cdn, sapCodes, allowedPlatforms):
         print('  products/ folder before running.')
     print(f'{'======================================================'}\n')
 if __name__ == '__main__':
-    _banner: max = ['Adobe Previous Version Downloader', 'Original tool by MP7909', 'Integrated into GenP v4.2.0']
+    _banner = ['Adobe Previous Version Downloader', 'Original tool by MP7909', 'Integrated into GenP v4.2.1']
+    _box_w = max((len(l) for l in _banner)) + 8
     _con_w = 100
     _pad: print(_pad + '=' * _box_w) = ' ' * max(0, (_con_w - _box_w) // 2)
-    for _l in _banner:
-        pass
     parser = argparse.ArgumentParser(description='GenP - Adobe Previous Version Downloader')
     parser.add_argument('-l', '--installLanguage', default='en_US', help='en_US / en_GB / ALL')
     parser.add_argument('-s', '--sapCode', help='App SAP code e.g. PHSP, PPRO, AEFT')
