@@ -206,7 +206,7 @@ Global $g_aExpectedCounts[6][2] = [ _
 		["FirewallTrust", 36], _
 		["DefaultPatterns", 1], _
 		["CustomPatterns", 58], _
-		["Patches", 156]]
+		["Patches", 153]]
 
 Local $sCfgProblem = _ConfigHealthProblem()
 If $sCfgProblem <> "" Then
