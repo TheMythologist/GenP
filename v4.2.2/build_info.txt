@@ -1,0 +1,11 @@
+GenP 4.2.2 local build
+
+Run run_build.bat as administrator.
+Output: Release/GenP-v4.2.2.exe
+
+Includes revised CC 6.11 signatures and matching config entry counts.
+Preserves the signed Adobe Desktop Service.exe required for CC installation.
+Restarts AdobeUpdateService after patch cleanup.
+Creative Cloud installation was confirmed working by the user.
+Includes an exact 24H2-only native compatibility override for the verified CC 6.11 AppsPanel build.
+The native override passed emulation and backend checks; installation was confirmed working by the user.
