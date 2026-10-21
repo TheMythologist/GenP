@@ -12,6 +12,7 @@ $exeName = "GenP-$Version.exe"
 if ((Split-Path $exePath -Leaf) -cne $exeName) { throw 'Unexpected executable in build manifest.' }
 $zipPath = Join-Path $releaseDir "GenP-$Version.zip"
 if (Test-Path -LiteralPath $zipPath) { throw "Package already exists: $zipPath" }
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
 try {
