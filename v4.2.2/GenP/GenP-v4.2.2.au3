@@ -64,6 +64,7 @@ Global $idEnableNGLFirewall = -1
 Global $idShowLaunchBar = -1
 Global $idOlderVerDl = -1
 Global $idFinalCleanCheck = -1
+Global $idFullAdobeClean = -1
 Global $idLabelRuntimeAuto = -1
 
 Global $g_aAllFiles[0][6]
@@ -1248,6 +1249,9 @@ While 1
 		Case $idMsg = $idOlderVerDl
 			CheckOptionsChanged()
 
+		Case $idMsg = $idFullAdobeClean
+			_RunFullAdobeClean()
+
 		Case $idMsg = $idReconcileStates
 			If _IsChecked($idReconcileStates) Then GUICtrlSetState($idCreateStates, $GUI_UNCHECKED)
 			CheckOptionsChanged()
@@ -1701,12 +1705,16 @@ Func MainGui()
 
 	GUICtrlCreateGroup("Clean Options", 5, 435, 585, 60)
 
-	$idResetOnSave = GUICtrlCreateCheckbox("Reset patch_states.ini", 15, 460, 275, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+	$idResetOnSave = GUICtrlCreateCheckbox("Reset patch_states.ini", 15, 460, 170, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
 	GUICtrlSetState($idResetOnSave, $GUI_UNCHECKED)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$idFinalCleanCheck = GUICtrlCreateCheckbox("Final Adobe Clean Check", 300, 460, 275, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
+	$idFinalCleanCheck = GUICtrlCreateCheckbox("Final Adobe Clean Check", 190, 460, 210, 25, BitOR($BS_AUTOCHECKBOX, $BS_LEFT))
 	GUICtrlSetState($idFinalCleanCheck, $GUI_UNCHECKED)
+	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
+
+	$idFullAdobeClean = GUICtrlCreateButton("Full Adobe Clean...", 415, 455, 160, 32)
+	GUICtrlSetTip($idFullAdobeClean, "Permanently remove Adobe products and leftovers. Use BCUninstaller first; manual removal is okay too.")
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
 	GUICtrlCreateGroup("", -99, -99, 1, 1)
@@ -1969,12 +1977,12 @@ Func MainGui()
 			$idShowLaunchBar, $idEnableNGLFirewall, $idOlderVerDl, $idResetOnSave, $idClearLicCaches, $idTriggerCaptureLaunch, _
 			$idReconcileStates, $idCreateStates, $idUseCustomDefault, _
 			$idBtnSetCustomPath, $idCustomDomainListInput, $idFinalCleanCheck]
-	Global $g_aToolCtrls[20] = [ _
+	Global $g_aToolCtrls[21] = [ _
 			$idBtnUpdateHosts, $idBtnCleanHosts, $idBtnEditHosts, $idBtnRestoreHosts, _
 			$idBtnCreateFW, $idBtnToggleFW, $idBtnRemoveFW, $idBtnOpenWF, _
 			$idBtnToggleRuntimeInstaller, $idBtnToggleWinTrust, $idBtnDevOverride, _
 			$idBtnRemoveAGS, $idBtnDummyAGS, $idBtnRestoreAGS, $idBtnSetTrustPath, $idBtnAGSInfo, _
-			$idBtnFirewallInfo, $idBtnHostsInfo, $idBtnRuntimeInfo, $idBtnWintrustInfo]
+			$idBtnFirewallInfo, $idBtnHostsInfo, $idBtnRuntimeInfo, $idBtnWintrustInfo, $idFullAdobeClean]
 	Global $g_aCheckCtrls[5] = [ _
 			$idBtnCheckAll, $idBtnUncheckAll, $idBtnCheckUnpatched, $idBtnCheckPatched, $idBtnRefresh]
 	GUICtrlSetState($idButtonSearch, $GUI_FOCUS)
@@ -2337,6 +2345,43 @@ Func _PickExtraAdobeDrives($sWinDrv, $sMyDrv)
 	GUISetState(@SW_ENABLE, $MyhGUI)
 	GUIDelete($hPick)
 	Return $sResult
+EndFunc
+
+Func _RunFullAdobeClean()
+	Local $sWorkerDir = @TempDir & "\GenP-AdobeClean-" & @AutoItPID & "-" & @MSEC
+	If Not DirCreate($sWorkerDir) Then
+		MsgBox(BitOR($MB_OK, $MB_ICONERROR), "Full Adobe Clean", "Could not create the cleanup working folder.")
+		Return
+	EndIf
+	Local $sWorker = $sWorkerDir & "\FullAdobeClean.ps1"
+	FileInstall("resources\FullAdobeClean.ps1", $sWorker, 1)
+	If Not FileExists($sWorker) Then
+		MsgBox(BitOR($MB_OK, $MB_ICONERROR), "Full Adobe Clean", "Could not extract the cleanup tool.")
+		DirRemove($sWorkerDir, 1)
+		Return
+	EndIf
+	GUISetState(@SW_DISABLE, $MyhGUI)
+	Local $sPowerShell = @WindowsDir & "\System32\WindowsPowerShell\v1.0\powershell.exe"
+	Local $iResult = RunWait('"' & $sPowerShell & '" -NoProfile -STA -ExecutionPolicy Bypass -File "' & $sWorker & '" -CallerPath "' & @AutoItExe & '"', $sWorkerDir, @SW_HIDE)
+	Local $iLaunchError = @error
+	GUISetState(@SW_ENABLE, $MyhGUI)
+	WinActivate($MyhGUI)
+	If $iLaunchError Then
+		MsgBox(BitOR($MB_OK, $MB_ICONERROR), "Full Adobe Clean", "Could not launch Windows PowerShell. No cleanup was started.")
+	Else
+		LogWrite(1, "Full Adobe Clean returned " & $iResult & " (0 = verified complete, 1 = failed/partial, 2 = cancelled).")
+		If $iResult <> 2 Then
+			_GUICtrlListView_DeleteAllItems($idListview)
+			$g_bSearchCompleted = False
+			$fFilesListed = 0
+			ReDim $g_aAllFiles[0][6]
+			$g_mCheckedState.RemoveAll()
+			GUICtrlSetState($idBtnCure, $GUI_DISABLE)
+			GUICtrlSetState($idBtnRestore, $GUI_DISABLE)
+			MemoWrite(@CRLF & "Full Adobe Clean finished. Review its result. Restart Windows before reinstalling; search again afterward.")
+		EndIf
+	EndIf
+	DirRemove($sWorkerDir, 1)
 EndFunc
 
 Func _RunFinalCleanCheck()
