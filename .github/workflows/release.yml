@@ -1,120 +1,67 @@
 name: Build and Release
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-v4.2.2
+  cancel-in-progress: false
+
 jobs:
-  detect-versions:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.find.outputs.matrix }}
-      has_unreleased: ${{ steps.find.outputs.has_unreleased }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Find unreleased versions
-        id: find
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # List all v* directories in root
-          VERSIONS=$(ls -d v*/ 2>/dev/null | sed 's|/||' || true)
-
-          if [ -z "$VERSIONS" ]; then
-            echo "No version directories found"
-            echo "has_unreleased=false" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"version":[]}' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Found version directories:"
-          echo "$VERSIONS"
-
-          # Get existing GitHub releases
-          EXISTING=$(gh release list --limit 100 --json tagName -q '.[].tagName' 2>/dev/null || true)
-          echo "Existing releases:"
-          echo "$EXISTING"
-
-          # Build list of unreleased versions
-          UNRELEASED=()
-          for v in $VERSIONS; do
-            if ! echo "$EXISTING" | grep -qx "$v"; then
-              UNRELEASED+=("\"$v\"")
-            fi
-          done
-
-          if [ ${#UNRELEASED[@]} -eq 0 ]; then
-            echo "All versions already have releases"
-            echo "has_unreleased=false" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"version":[]}' >> "$GITHUB_OUTPUT"
-          else
-            JOINED=$(IFS=,; echo "${UNRELEASED[*]}")
-            MATRIX="{\"version\":[$JOINED]}"
-            echo "Unreleased versions: $MATRIX"
-            echo "has_unreleased=true" >> "$GITHUB_OUTPUT"
-            echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          fi
-
   build-and-release:
-    needs: detect-versions
-    if: needs.detect-versions.outputs.has_unreleased == 'true'
     runs-on: windows-latest
-    strategy:
-      matrix: ${{ fromJson(needs.detect-versions.outputs.matrix) }}
-      fail-fast: false
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: '3.x'
+
+      - name: Check release does not already exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not query GitHub releases.' }
+          if (@($releases | Where-Object tag_name -eq 'v4.2.2').Count -gt 0) { throw 'v4.2.2 already exists; existing releases are never overwritten.' }
 
       - name: Verify third-party binaries
-        run: python verify_binaries.py "${{ matrix.version }}"
+        run: python verify_binaries.py v4.2.2
 
-      - name: Build ${{ matrix.version }}
+      - name: Build v4.2.2
         shell: pwsh
         run: |
           Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
-          # Override Read-Host so interactive prompts auto-confirm in CI
           function global:Read-Host { return 'y' }
-          # Reset PSModulePath to Windows PowerShell 5.1 defaults so that
-          # powershell.exe subprocesses (spawned by build.ps1) can load
-          # modules like Microsoft.PowerShell.Security without conflicts.
           $env:PSModulePath = @(
             "$env:USERPROFILE\Documents\WindowsPowerShell\Modules",
-            "C:\Program Files\WindowsPowerShell\Modules",
-            "C:\Windows\system32\WindowsPowerShell\v1.0\Modules"
+            'C:\Program Files\WindowsPowerShell\Modules',
+            'C:\Windows\system32\WindowsPowerShell\v1.0\Modules'
           ) -join ';'
-          Set-Location "${{ matrix.version }}"
-          & .\build.ps1
+          & .\v4.2.2\build.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 
-      - name: Find built executable
-        id: find-exe
-        shell: bash
-        run: |
-          EXE_PATH=$(find "${{ matrix.version }}/Release" -name "GenP*.exe" -type f | head -1)
-          if [ -z "$EXE_PATH" ]; then
-            echo "::error::No executable found in ${{ matrix.version }}/Release"
-            exit 1
-          fi
-          EXE_NAME=$(basename "$EXE_PATH")
-          echo "exe_path=$EXE_PATH" >> "$GITHUB_OUTPUT"
-          echo "exe_name=$EXE_NAME" >> "$GITHUB_OUTPUT"
-          echo "Found: $EXE_PATH"
+      - name: Package verified runtime
+        shell: pwsh
+        run: .\package_release.ps1
 
-      - name: Create GitHub Release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+        shell: pwsh
         run: |
-          gh release create "${{ matrix.version }}" \
-            --title "GenP ${{ matrix.version }}" \
-            --generate-notes \
-            "${{ steps.find-exe.outputs.exe_path }}#${{ steps.find-exe.outputs.exe_name }}" \
-            "${{ matrix.version }}/GenP/config.ini#config.ini"
+          @'
+          Extract GenP-v4.2.2.zip and run GenP-v4.2.2.exe with config.ini beside it.
+
+          The ZIP contains only the executable and required configuration. SHA256SUMS.txt and build-manifest.json are provided separately for verification.
+
+          All patches are updated by SpaceDotWho. If you paid for this, you got scammed. This is free.
+
+          Report bugs and application-update problems at https://github.com/SpaceDotWho/GenP/issues. Wiki guides are outdated and are not a source for official updates to this fork.
+          '@ | Set-Content release-notes.txt
+          gh release create v4.2.2 --target "$env:GITHUB_SHA" --title 'GenP v4.2.2' --notes-file release-notes.txt v4.2.2/Release/GenP-v4.2.2.zip v4.2.2/Release/SHA256SUMS.txt v4.2.2/Release/build-manifest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

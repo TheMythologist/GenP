@@ -7,5 +7,17 @@ Includes revised CC 6.11 signatures and matching config entry counts.
 Preserves the signed Adobe Desktop Service.exe required for CC installation.
 Restarts AdobeUpdateService after patch cleanup.
 Creative Cloud installation was confirmed working by the user.
-Includes an exact 24H2-only native compatibility override for the verified CC 6.11 AppsPanel build.
-The native override passed emulation and backend checks; installation was confirmed working by the user.
+Includes a native OS-only compatibility override for the verified CC 6.11 AppsPanel build, without a Windows build-number restriction.
+OS-only failures are overridden; hardware-only and mixed failures remain blocked. Migration from the earlier 24H2-only override is included.
+The native override passed 30 emulation cases. The live CC backend reported zero incompatible products after repair/restart.
+Fixes RuntimeInstaller auto-unpacking: packing is checked even for AE/Premiere v26.3+.
+AE 26.5 RuntimeInstaller was unpacked and patched at two existing pattern matches; runtime codec execution remains untested.
+Includes an exact HDPIM 6.11 OS-range installer repair; Illustrator retry completed with installer exit code 0.
+Large-file patching now respects the disabled Good1 option. Photoshop copy output passed an independent byte-for-byte comparison.
+Premiere's object-pointer overwrite was replaced with a repair pattern. Added message-box hook cleanup and pointer-sized callback return.
+Photoshop's recurring startup window was traced to an expired NGL profile and the starttrial licensing workflow.
+Latest recovery: restored 11 files across Photoshop 27.11.0.26, Premiere 26.5.2.5 and InDesign 21.6.0.57 from verified clean backups. All three remained running for a 30-second startup check.
+InDesign retains its Unsupported guard for the reproduced failing build.
+Photoshop 27.11.0.26 now uses seven version-specific patterns, with original/output hash verification and automatic restoration if the output differs. The validated candidate changes 20 bytes and passed create/edit/save/reopen testing without the recurring purchase popup during observation. Its support DLLs are skipped. The account's trial-ended Home banner can remain; online subscription features were not validated.
+Premiere 26.5.2.5 now uses six version-specific rules and original/output hash verification. Its corrected executable passed project editing, save/close/reopen, and MP4 export tests without the recurring licensing window during two observed launches. Original backup is preserved; mismatched output is restored automatically. Photoshop's prior output hash passed regression verification. Online subscription features and other codecs were not validated.
+Release SHA-256: 4FC4DED3D8B09D11C562A43916C518CF1B76DBAC2CCA5747844A90F0EA382AF2

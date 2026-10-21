@@ -1,10 +1,4 @@
-<#
-Build GenP
-Requires administrative privileges
-Run with: .\build.ps1 or via run_build.bat
-#>
-
-param ([string]$ReleaseDirectory = "Release")
+﻿param ([string]$ReleaseDirectory = "Release")
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -432,11 +426,38 @@ try {
     }
     $au3FileName = Split-Path $au3File -Leaf
     Write-Host " - Building $au3FileName"
+    $sourceContent = Get-Content -LiteralPath $au3File -Raw
+    $countBlock = [regex]::Match($sourceContent, '(?s)Global \$g_aExpectedCounts.*?\]\]').Value
+    $configSections = @{}
+    $currentSection = ''
+    foreach ($configLine in Get-Content -LiteralPath (Join-Path $genpDir 'config.ini')) {
+        $trimmed = $configLine.Trim()
+        if ($trimmed -match '^\[([^\]]+)\]$') { $currentSection = $matches[1]; $configSections[$currentSection] = @{} }
+        elseif ($trimmed -ne '' -and -not $trimmed.StartsWith(';') -and $trimmed.Contains('=')) {
+            $parts = $trimmed.Split([char[]]@('='), 2, [StringSplitOptions]::None)
+            $configSections[$currentSection][$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+    $expectedSections = [regex]::Matches($countBlock, '\["([^"
+
+]+)",\s*(\d+)\]')
+    if ($expectedSections.Count -ne 6) { throw 'Source configuration-count declarations are missing or invalid.' }
+    foreach ($sectionMatch in $expectedSections) {
+        $sectionName = $sectionMatch.Groups[1].Value
+        $expectedCount = [int]$sectionMatch.Groups[2].Value
+        if (-not $configSections.ContainsKey($sectionName)) { throw "Missing config section: $sectionName" }
+        $actualCount = if ($sectionName -eq 'DefaultPatterns') { @($configSections[$sectionName]['Values'].Replace('"','').Split(',') | Where-Object { $_.Trim() -ne '' }).Count } else { $configSections[$sectionName].Count }
+        if ($actualCount -ne $expectedCount) { throw "Config count mismatch: $sectionName expected $expectedCount, found $actualCount" }
+    }
+    $projectRoot = Split-Path $scriptDir -Parent
+    $buildInputFiles = @(Get-ChildItem -LiteralPath $genpDir -Recurse -File | Where-Object { $_.Name -notlike '*.hashes.txt' -and $_.Name -notlike 'GenP*.exe' -and $_.Name -notlike '*_stripped.au3' })
+    $buildInputFiles += Get-Item -LiteralPath $PSCommandPath, (Join-Path $scriptDir 'run_build.bat'), (Join-Path $projectRoot 'verify_build.ps1')
+    $buildInputs = @($buildInputFiles | Sort-Object FullName | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($projectRoot.Length + 1).Replace('\','/'); bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
     $autoItOutLog = Join-Path $logsDir "AutoIt_out.log"
     $autoItErrLog = Join-Path $logsDir "AutoIt_err.log"
     Remove-Item -Path (Join-Path $genpDir "GenP*.exe") -Force -ErrorAction SilentlyContinue
     $autoItArgs = "`"$wrapperScript`" /NoStatus /in `"$au3File`""
-    Start-Process -FilePath $autoItCoreExe -ArgumentList $autoItArgs -WorkingDirectory $genpDir -RedirectStandardOutput $autoItOutLog -RedirectStandardError $autoItErrLog -Wait -ErrorAction Stop
+    Start-Process -FilePath $autoItCoreExe -ArgumentList $autoItArgs -WorkingDirectory $genpDir -WindowStyle Hidden -RedirectStandardOutput $autoItOutLog -RedirectStandardError $autoItErrLog -Wait -ErrorAction Stop
     $exeFiles = @(Get-ChildItem -Path $genpDir -Filter "GenP*.exe" -File -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
     if ($exeFiles.Count -eq 0) {
         Write-Error "AutoIt3Wrapper failed to produce a GenP*.exe in $genpDir. Check $autoItErrLog."
@@ -509,6 +530,27 @@ try {
     Write-Host "   Size:   $au3SizeBytes bytes" -ForegroundColor Green
     Write-Host "   Saved:  $au3Saved" -ForegroundColor Green
     Write-Host "   Saved to $(Split-Path -Leaf $au3HashFile)" -ForegroundColor Green
+    foreach ($inputEntry in $buildInputs) {
+        $inputPath = Join-Path $projectRoot $inputEntry.path
+        if ((Get-FileHash -LiteralPath $inputPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputEntry.sha256) { throw "Build input changed during compilation: $($inputEntry.path)" }
+    }
+    Copy-Item -LiteralPath (Join-Path $genpDir 'config.ini') -Destination (Join-Path $releaseDir 'config.ini') -Force
+    $sourceRevision = $null
+    if (Test-Path -LiteralPath (Join-Path $projectRoot '.git')) {
+        $sourceRevision = & git -C $projectRoot rev-parse HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot determine source revision.' }
+    }
+    $buildManifest = [ordered]@{
+        schema = 1
+        source_revision = $sourceRevision
+        built_utc = [DateTime]::UtcNow.ToString('o')
+        source = $au3File.Substring($projectRoot.Length + 1).Replace('\','/')
+        inputs = $buildInputs
+        compiler = [ordered]@{ version = (Get-Item -LiteralPath (Join-Path $autoItInstallDir 'install\aut2exe\aut2exe.exe')).VersionInfo.FileVersion; sha256 = (Get-FileHash -LiteralPath (Join-Path $autoItInstallDir 'install\aut2exe\aut2exe.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
+        output = [ordered]@{ path = $releaseExe.Substring($projectRoot.Length + 1).Replace('\','/'); bytes = $sizeBytes; sha256 = $sha256.ToLowerInvariant() }
+    }
+    $buildManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $releaseDir 'build-manifest.json') -Encoding UTF8
+    & (Join-Path $projectRoot 'verify_build.ps1') -Manifest (Join-Path $releaseDir 'build-manifest.json')
 }
 catch {
     Write-Host "Failed to build AutoIt script: $_" -ForegroundColor Red

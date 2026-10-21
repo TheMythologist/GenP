@@ -1,9 +1,4 @@
-# GenP — Gude Log Cleanup
-# Removes Adobe gude-*.log files that accumulate when the Good patch is active.
-# These files are harmless side effects of the Good patch blocking Adobe network calls.
-# Drives: __DRIVES__
-
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+﻿$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogFile   = Join-Path $ScriptDir "RemoveGudeLogs.log"
 
 Set-Content -Path $LogFile -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + " - Gude log cleanup started") -Encoding UTF8
@@ -24,14 +19,12 @@ function Test-IsAdmin {
 Test-IsAdmin
 Write-Log "Running as administrator."
 
-# Parse drive list from embedded placeholder
 $Drives = @("__DRIVES__" -split ",") |
     ForEach-Object { $_.Trim().TrimEnd(':').TrimEnd('\') } |
     Where-Object { $_ -ne "" }
 
 $SearchPaths = [System.Collections.Generic.List[string]]::new()
 
-# All user AppData\Roaming\Adobe paths (gude logs land here)
 if (Test-Path "C:\Users") {
     Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         $p = Join-Path $_.FullName "AppData\Roaming\Adobe"
@@ -39,11 +32,9 @@ if (Test-Path "C:\Users") {
     }
 }
 
-# Common AppData Adobe path (C:\ProgramData\Adobe)
 $CommonAdobe = Join-Path $env:ProgramData "Adobe"
 if (Test-Path $CommonAdobe) { $SearchPaths.Add($CommonAdobe) }
 
-# Adobe folder on each selected drive (e.g. E:\Adobe)
 foreach ($D in $Drives) {
     $AdobePath = "${D}:\Adobe"
     if (Test-Path $AdobePath) { $SearchPaths.Add($AdobePath) }

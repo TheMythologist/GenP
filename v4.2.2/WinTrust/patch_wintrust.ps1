@@ -1,9 +1,4 @@
-<#
-Patch wintrust.dll
-greets Team V.R
-#>
-
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $scriptDir = $PSScriptRoot

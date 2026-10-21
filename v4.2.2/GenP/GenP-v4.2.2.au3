@@ -1,6 +1,5 @@
-#NoTrayIcon
+﻿#NoTrayIcon
 #RequireAdmin
-#Region
 #AutoIt3Wrapper_Icon=Skull.ico
 #AutoIt3Wrapper_Outfile_x64=GenP-v4.2.2.exe
 #AutoIt3Wrapper_Res_Comment=GenP
@@ -16,7 +15,6 @@
 #AutoIt3Wrapper_Run_Tidy=n
 #AutoIt3Wrapper_UseUpx=n
 #AutoIt3Wrapper_UseX64=y
-#EndRegion
 
 #include <Array.au3>
 #include <ButtonConstants.au3>
@@ -48,6 +46,8 @@
 AutoItSetOption("GUICloseOnESC", 0)
 
 Global $g_Version = "4.2.2"
+Global Const $g_sRepositoryURL = "https://github.com/SpaceDotWho/GenP"
+Global $g_idRepositoryLink = 0, $g_idCopyFilePath = 0, $g_idCopyDirectory = 0
 Global $g_AppWndTitle = "GenP v" & $g_Version
 Global $g_AppVersion = "GenP" & @CRLF & "Originally created by uncia"
 
@@ -94,6 +94,7 @@ Global $FilesToPatch[0][1], $FilesToPatchNull[0][1]
 Global $FilesToRestore[0][1], $fFilesListed = 0
 Global $MyhGUI, $hTab, $hMainTab, $hLogTab, $idMsg, $idListview, $g_idListview, $idButtonSearch, $idButtonStop
 Global $g_hMsgBoxHook = 0, $g_pMsgBoxCBT = 0
+OnAutoItExitRegister("_MsgBoxCenterDone")
 Global $idButtonCustomFolder, $idBtnCure, $idBtnDeselectAll, $ListViewSelectFlag = 1
 Global $idBtnModified = 0
 Global $idBtnUpdateHosts, $idMemo, $timestamp, $idLog, $idBtnRestore, $idBtnCopyLog, $idFindACC
@@ -205,8 +206,8 @@ Global $g_aExpectedCounts[6][2] = [ _
 		["RuntimeInstallers", 2], _
 		["FirewallTrust", 36], _
 		["DefaultPatterns", 1], _
-		["CustomPatterns", 57], _
-		["Patches", 160]]
+		["CustomPatterns", 60], _
+		["Patches", 175]]
 
 Local $sCfgProblem = _ConfigHealthProblem()
 If $sCfgProblem <> "" Then
@@ -491,6 +492,10 @@ While 1
 	EndIf
 
 	Select
+		Case $idMsg = $g_idCopyFilePath
+			_CopyListedPaths(False)
+		Case $idMsg = $g_idCopyDirectory
+			_CopyListedPaths(True)
 		Case $idMsg = $GUI_EVENT_CLOSE
 			GUIDelete($MyhGUI)
 			_Exit()
@@ -663,7 +668,7 @@ While 1
 			Local $iChecked = 0
 			For $i = 0 To $iCt - 1
 				Local $sStatus = _GUICtrlListView_GetItemText($idListview, $i, 2)
-				If $sStatus <> "Patched" Then
+				If $sStatus = "Unpatched" Or $sStatus = "Modified" Or $sStatus = "Unknown" Then
 					_GUICtrlListView_SetItemChecked($idListview, $i, 1)
 					$iChecked += 1
 				Else
@@ -838,6 +843,15 @@ While 1
 
 					_GUICtrlListView_SetItemSelected($idListview, $i)
 					$ItemFromList = _GUICtrlListView_GetItemText($idListview, $i, 1)
+					Local $sStartupBlock = _StartupPatchBlockReason($ItemFromList)
+					If $sStartupBlock <> "" Then
+						MemoWrite(@CRLF & $sStartupBlock & @CRLF & "No files changed: " & $ItemFromList)
+						LogWrite(1, $sStartupBlock & " - " & $ItemFromList)
+						_GUICtrlListView_SetItemText($idListview, $i, StringLeft($sStartupBlock, 28) = "No additional patch required" ? "Skipped" : "Unsupported", 2)
+						_GUICtrlListView_SetItemChecked($idListview, $i, False)
+						$iDone += 1
+						ContinueLoop
+					EndIf
 
 					_GUICtrlListView_SetItemText($idListview, $i, "Patching...", 2)
 
@@ -1503,16 +1517,19 @@ Func _SetState($aIds, $iState)
 EndFunc
 
 Func MainGui()
-	$MyhGUI = GUICreate($g_AppWndTitle, 595, 610, -1, -1, BitOR($WS_MINIMIZEBOX, $GUI_SS_DEFAULT_GUI))
+	$MyhGUI = GUICreate($g_AppWndTitle, 595, 685, -1, -1, BitOR($WS_MINIMIZEBOX, $GUI_SS_DEFAULT_GUI))
 	_MsgBoxCenterInit()
 	If FileExists(@ScriptDir & "\Skull.ico") Then GUISetIcon(@ScriptDir & "\Skull.ico", 0, $MyhGUI)
 	$hTab = GUICtrlCreateTab(0, 1, 597, 610, $TCS_FIXEDWIDTH)
 	_SendMessage(GUICtrlGetHandle($hTab), 0x1329, 0, 74)
 
 	$hMainTab = GUICtrlCreateTabItem("Main")
-	$idListview = GUICtrlCreateListView("", 10, 35, 575, 385)
+	$idListview = GUICtrlCreateListView("", 10, 35, 575, 385, BitOR($LVS_REPORT, $LVS_SHOWSELALWAYS))
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 	$g_idListview = GUICtrlGetHandle($idListview)
+	Local $idFileMenu = GUICtrlCreateContextMenu($idListview)
+	$g_idCopyFilePath = GUICtrlCreateMenuItem("Copy file path", $idFileMenu)
+	$g_idCopyDirectory = GUICtrlCreateMenuItem("Copy containing folder", $idFileMenu)
 	_GUICtrlListView_SetExtendedListViewStyle($g_idListview, BitOR($LVS_EX_CHECKBOXES, $LVS_EX_FULLROWSELECT, $LVS_EX_GRIDLINES, $LVS_EX_DOUBLEBUFFER))
 	_GUICtrlListView_SetItemCount($idListview, UBound($FilesToPatch))
 	_GUICtrlListView_AddColumn($idListview, "", 20)
@@ -1598,7 +1615,7 @@ Func MainGui()
 
 	$idBtnDeselectAll = GUICtrlCreateDummy()
 
-	$g_idHyperlinkMain = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkMain = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkMain, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkMain, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkMain, $GUI_BKCOLOR_TRANSPARENT)
@@ -1708,7 +1725,7 @@ Func MainGui()
 	GUICtrlSetState($idBtnSaveOptions, $GUI_DISABLE)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkOptions = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkOptions = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkOptions, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkOptions, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkOptions, $GUI_BKCOLOR_TRANSPARENT)
@@ -1748,7 +1765,7 @@ Func MainGui()
 	$idLabelRuntimeInstaller = GUICtrlCreateDummy()
 	$idBtnToggleRuntimeInstaller = GUICtrlCreateDummy()
 
-	$g_idHyperlinkWT = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkWT = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkWT, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkWT, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkWT, $GUI_BKCOLOR_TRANSPARENT)
@@ -1789,7 +1806,7 @@ Func MainGui()
 
 	$idBtnHostsInfo = GUICtrlCreateDummy()
 
-	$g_idHyperlinkHosts = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkHosts = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkHosts, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkHosts, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkHosts, $GUI_BKCOLOR_TRANSPARENT)
@@ -1834,7 +1851,7 @@ Func MainGui()
 			(595 - 580) / 2, 410, 580, 160, $SS_CENTER)
 	GUICtrlSetFont(-1, 9, 400, 0, "Segoe UI")
 
-	$g_idHyperlinkProxy = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkProxy = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkProxy, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkProxy, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkProxy, $GUI_BKCOLOR_TRANSPARENT)
@@ -1872,7 +1889,7 @@ Func MainGui()
 
 	$idBtnFirewallInfo = GUICtrlCreateDummy()
 
-	$g_idHyperlinkFW = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkFW = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkFW, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkFW, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkFW, $GUI_BKCOLOR_TRANSPARENT)
@@ -1906,7 +1923,7 @@ Func MainGui()
 
 	$idBtnAGSInfo = GUICtrlCreateDummy()
 
-	$g_idHyperlinkAGS = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkAGS = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkAGS, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkAGS, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkAGS, $GUI_BKCOLOR_TRANSPARENT)
@@ -1930,13 +1947,19 @@ Func MainGui()
 	GUICtrlSetImage(-1, "imageres.dll", -77, 0)
 	GUICtrlSetResizing(-1, $GUI_DOCKAUTO)
 
-	$g_idHyperlinkLog = GUICtrlCreateLabel("GenP Wiki && Guides", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
+	$g_idHyperlinkLog = GUICtrlCreateLabel("Older guides (outdated)", (595 - 160) / 2, 580, 160, 24, BitOR($SS_CENTER, $SS_NOTIFY))
 	GUICtrlSetFont($g_idHyperlinkLog, 9, 400, 0, "Segoe UI")
 	GUICtrlSetColor($g_idHyperlinkLog, 0x000000)
 	GUICtrlSetBkColor($g_idHyperlinkLog, $GUI_BKCOLOR_TRANSPARENT)
 	GUICtrlSetCursor($g_idHyperlinkLog, 0)
 
 	GUICtrlCreateTabItem("")
+	GUICtrlCreateLabel("All patches are updated by SpaceDotWho", 10, 616, 575, 18, $SS_CENTER)
+	GUICtrlSetFont(-1, 9, 700, 0, "Segoe UI")
+	GUICtrlCreateLabel("If you paid for this, you got scammed. This is free.", 10, 635, 575, 18, $SS_CENTER)
+	$g_idRepositoryLink = GUICtrlCreateLabel("Please report bugs: " & $g_sRepositoryURL, 10, 654, 575, 22, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetColor(-1, 0x0066CC)
+	GUICtrlSetCursor(-1, 0)
 
 	MemoWrite(@CRLF & "Path" & @CRLF & "---" & @CRLF & $MyDefPath & @CRLF & "---" & @CRLF & "Waiting for user action.")
 
@@ -1975,11 +1998,32 @@ Func MainGui()
 EndFunc
 
 Func _MsgBoxCenterInit()
-	$g_pMsgBoxCBT = DllCallbackRegister("_MsgBoxCBTProc", "long", "int;wparam;lparam")
+	If $g_hMsgBoxHook <> 0 Then Return
+	$g_pMsgBoxCBT = DllCallbackRegister("_MsgBoxCBTProc", "lresult", "int;wparam;lparam")
+	If @error Or $g_pMsgBoxCBT = 0 Then Return
 	Local $aTID = DllCall("kernel32.dll", "dword", "GetCurrentThreadId")
-	Local $aHook = DllCall("user32.dll", "handle", "SetWindowsHookEx", _
+	If @error Or Not IsArray($aTID) Then
+		_MsgBoxCenterDone()
+		Return
+	EndIf
+	Local $aHook = DllCall("user32.dll", "handle", "SetWindowsHookExW", _
 		"int", 5, "ptr", DllCallbackGetPtr($g_pMsgBoxCBT), "ptr", 0, "dword", $aTID[0])
 	If IsArray($aHook) Then $g_hMsgBoxHook = $aHook[0]
+	If $g_hMsgBoxHook = 0 Then _MsgBoxCenterDone()
+EndFunc
+
+Func _MsgBoxCenterDone()
+
+	If $g_hMsgBoxHook <> 0 Then
+		Local $aUnhook = DllCall("user32.dll", "bool", "UnhookWindowsHookEx", "handle", $g_hMsgBoxHook)
+		If @error Or Not IsArray($aUnhook) Then Return
+		If Not $aUnhook[0] Then Return
+		$g_hMsgBoxHook = 0
+	EndIf
+	If $g_pMsgBoxCBT <> 0 Then
+		DllCallbackFree($g_pMsgBoxCBT)
+		$g_pMsgBoxCBT = 0
+	EndIf
 EndFunc
 
 Func _MsgBoxCBTProc($nCode, $wParam, $lParam)
@@ -1993,6 +2037,7 @@ Func _MsgBoxCBTProc($nCode, $wParam, $lParam)
 	EndIf
 	Local $aRet = DllCall("user32.dll", "lresult", "CallNextHookEx", "handle", $g_hMsgBoxHook, _
 		"int", $nCode, "wparam", $wParam, "lparam", $lParam)
+	If @error Or Not IsArray($aRet) Then Return 0
 	Return $aRet[0]
 EndFunc
 
@@ -2715,78 +2760,26 @@ Func _InitializeFontLayoutEngine()
 EndFunc
 
 Func _PrecacheDisplayAssets()
-	Local $iGuiWidth = 580
-	Local $hFontCacheLayoutContext = GUICreate(_GetCpTranslation(3), $iGuiWidth, 315, -1, -1, BitOR(0x80000000, 0x00800000))
-	GUISetBkColor(0xF5F5F5, $hFontCacheLayoutContext)
-
-	GUICtrlCreateLabel("Welcome to GenP v4.2.2", 0, 25, $iGuiWidth, 20, 1)
+	Local $hWelcome = GUICreate("Welcome to GenP", 580, 260, -1, -1, BitOR($WS_POPUP, $WS_BORDER))
+	GUISetBkColor(0xF5F5F5, $hWelcome)
+	GUICtrlCreateLabel("Welcome to GenP v" & $g_Version, 20, 24, 540, 24, $SS_CENTER)
+	GUICtrlSetFont(-1, 12, 700, 0, "Segoe UI")
+	GUICtrlCreateLabel("Originally created by uncia", 20, 58, 540, 20, $SS_CENTER)
+	GUICtrlCreateLabel("All patches are updated by SpaceDotWho", 20, 88, 540, 22, $SS_CENTER)
 	GUICtrlSetFont(-1, 10, 700, 0, "Segoe UI")
-
-	GUICtrlCreateLabel("Originally created by uncia", 0, 48, $iGuiWidth, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 2, "Segoe UI")
-
-	GUICtrlCreateLabel("Latest version updated by a Good Samaritan", 0, 68, $iGuiWidth, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 2, "Segoe UI")
-
-	GUICtrlCreateLabel("", 40, 100, 100, 1)
-	GUICtrlSetBkColor(-1, 0xEAEAEA)
-
-	GUICtrlCreateLabel("", 140, 100, 300, 1)
-	GUICtrlSetBkColor(-1, 0xD0D0D0)
-
-	GUICtrlCreateLabel("", 440, 100, 100, 1)
-	GUICtrlSetBkColor(-1, 0xEAEAEA)
-
-	Local $sPara1 = _GetCpTranslation(6)
-	GUICtrlCreateLabel($sPara1, 20, 115, $iGuiWidth - 40, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 0, "Segoe UI")
-
-	Local $hHyperlink = GUICtrlCreateLabel("GenP Wiki && Guides", 0, 140, $iGuiWidth, 20, 0x0101)
-	GUICtrlSetFont($hHyperlink, 9, 400, 4, "Segoe UI")
-	GUICtrlSetColor($hHyperlink, 0x0066CC)
-	GUICtrlSetBkColor($hHyperlink, -2)
-	GUICtrlSetCursor($hHyperlink, 0)
-
-	Local $sPara2 = _GetCpTranslation(7)
-	GUICtrlCreateLabel($sPara2, 20, 170, $iGuiWidth - 40, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 0, "Segoe UI")
-
-	Local $sPara3 = _GetCpTranslation(8)
-	GUICtrlCreateLabel($sPara3, 20, 196, $iGuiWidth - 40, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 0, "Segoe UI")
-
-	Local $sPara4 = _GetCpTranslation(9)
-	GUICtrlCreateLabel($sPara4, 20, 222, $iGuiWidth - 40, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 0, "Segoe UI")
-
-	Local $sPara5 = _GetCpTranslation(5)
-	GUICtrlCreateLabel($sPara5, 20, 248, $iGuiWidth - 40, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 0, "Segoe UI")
-
-	Local $sPara6 = _GetCpTranslation(10)
-	GUICtrlCreateLabel($sPara6, 20, 274, $iGuiWidth - 40, 20, 1)
-	GUICtrlSetFont(-1, 9, 400, 2, "Segoe UI")
-
-	GUISetState(@SW_SHOW, $hFontCacheLayoutContext)
-
-	If _WinAPI_IsWindow($hFontCacheLayoutContext) Then
-		$g_bIsHighDpiScalingActive = True
-	EndIf
-
-	Local $iStartTime = TimerInit()
-
-	While 1
-		If TimerDiff($iStartTime) >= 5000 Then
-			GUIDelete($hFontCacheLayoutContext)
-			ExitLoop
-		EndIf
-
-		Switch GUIGetMsg()
-			Case $hHyperlink
-				ShellExecute(Deloader($g_aSignature))
-		EndSwitch
+	GUICtrlCreateLabel("If you paid for this, you got scammed. This is free.", 20, 122, 540, 22, $SS_CENTER)
+	GUICtrlCreateLabel("Please report bugs to my repository here:", 20, 160, 540, 20, $SS_CENTER)
+	Local $idRepository = GUICtrlCreateLabel($g_sRepositoryURL, 20, 186, 540, 22, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetColor(-1, 0x0066CC)
+	GUICtrlSetCursor(-1, 0)
+	GUISetState(@SW_SHOW, $hWelcome)
+	$g_bIsHighDpiScalingActive = _WinAPI_IsWindow($hWelcome)
+	Local $iStarted = TimerInit()
+	While TimerDiff($iStarted) < 5000
+		If GUIGetMsg() = $idRepository Then ShellExecute($g_sRepositoryURL)
 		Sleep(10)
 	WEnd
+	GUIDelete($hWelcome)
 EndFunc
 
 Func _RenderTextMetricBuffer()
@@ -2911,22 +2904,23 @@ Func _ShowUpdateNoticeIfNeeded()
 	If $g_bUpdateNoticeShown Then Return
 	$g_bUpdateNoticeShown = True
 
-	Local $sMsg = "To keep things running smoothly, please read the" & @CRLF & _
-			"Announcements channel on GenP Stoat and check the" & @CRLF & _
-			"GenP Wiki Compatibility List before installing any updates." & @CRLF & @CRLF & _
-			"Adobe updates often, which can silently break a working patch." & @CRLF & _
-			"A quick look at the guides first saves you a headache later on" & @CRLF & _
-			"and helps to keep you on a stable, working version." & @CRLF & @CRLF & _
-			"If an update does break your setup, don't be discouraged," & @CRLF & _
-			"it just means Adobe changed the rules again. Check the" & @CRLF & _
-			"Announcements and Wiki to see exactly what's affected."
+	Local $sMsg = "GenP Wiki and Guides contains older guides." & @CRLF & _
+			"The guides are outdated. Do not look there for official updates." & @CRLF & @CRLF & _
+			"Please report bugs, popup issues, and problems caused by" & @CRLF & _
+			"Adobe updates to my GitHub repository:"
 
-	Local $hNotice = GUICreate("Before You Update", 450, 250, -1, -1, 0x00C00000, $WS_EX_TOPMOST, $MyhGUI)
-	Local $idLbl = GUICtrlCreateLabel($sMsg, 35, 16, 380, 172, $SS_CENTER)
+	Local $hNotice = GUICreate("Guides and Issue Reports", 520, 300, -1, -1, 0x00C00000, $WS_EX_TOPMOST, $MyhGUI)
+	Local $idLbl = GUICtrlCreateLabel($sMsg, 25, 16, 470, 104, $SS_CENTER)
 	GUICtrlSetFont($idLbl, 9, 400, 0, "Segoe UI")
-	Local $idOk = GUICtrlCreateButton("OK", 88, 200, 94, 32)
+	Local $idRepository = GUICtrlCreateLabel($g_sRepositoryURL, 25, 124, 470, 22, BitOR($SS_CENTER, $SS_NOTIFY))
+	GUICtrlSetColor(-1, 0x0066CC)
+	GUICtrlSetCursor(-1, 0)
+	GUICtrlCreateLabel("All patches are updated by SpaceDotWho", 25, 160, 470, 22, $SS_CENTER)
+	GUICtrlSetFont(-1, 9, 700, 0, "Segoe UI")
+	GUICtrlCreateLabel("If you paid for this, you got scammed. This is free.", 25, 186, 470, 22, $SS_CENTER)
+	Local $idOk = GUICtrlCreateButton("OK", 112, 244, 94, 32)
 	GUICtrlSetFont($idOk, 10, 700)
-	Local $idHide = GUICtrlCreateButton("Don't show again", 212, 200, 150, 32)
+	Local $idHide = GUICtrlCreateButton("Don't show again", 240, 244, 160, 32)
 	GUICtrlSetFont($idHide, 10, 700)
 
 	GUISetState(@SW_DISABLE, $MyhGUI)
@@ -2934,6 +2928,8 @@ Func _ShowUpdateNoticeIfNeeded()
 
 	While 1
 		Switch GUIGetMsg()
+			Case $idRepository
+				ShellExecute($g_sRepositoryURL)
 			Case $idHide
 				IniWrite($sINIPath, "Options", "HideUpdateNotice", "1")
 				ExitLoop
@@ -3022,7 +3018,7 @@ Func _ApplyVisibilityFilter($bInitial = False)
 		ReDim $aVisible[$iV + 1][3]
 		$aVisible[$iV][0] = $iV
 		$aVisible[$iV][1] = $sPath
-		$aVisible[$iV][2] = FileExists($sPath & ".bak") ? "Patched" : "Unpatched"
+		$aVisible[$iV][2] = _ResolvePatchStatus($sPath)
 		_ArrayAdd($FilesToPatch, $sPath)
 	Next
 
@@ -3230,7 +3226,7 @@ Func _ApplyModifiedFilter()
 	_SendMessageL($g_idListview, $WM_SETREDRAW, False, 0)
 	While $iRow >= 0
 		Local $sStatus = _GUICtrlListView_GetItemText($g_idListview, $iRow, 2)
-		If $sStatus = "Patched" Then
+		If $sStatus = "Patched" Or $sStatus = "Not required" Then
 			_GUICtrlListView_DeleteItem($g_idListview, $iRow)
 			$iRemoved += 1
 		Else
@@ -3345,98 +3341,73 @@ Func _UXPPatchedState($sFilePath)
 	Return -1
 EndFunc
 
+Func _PatchStatusMD5($sPath)
+	_Crypt_Startup()
+	Local $bHash = _Crypt_HashFile($sPath, $CALG_MD5)
+	Local $iError = @error
+	_Crypt_Shutdown()
+	If $iError Or BinaryLen($bHash) <> 16 Then Return ""
+	Return StringLower(StringTrimLeft(String($bHash), 2))
+EndFunc
+
+Func _ResolvePatchStatus($sPath)
+	If Not FileExists($sPath) Then Return "Missing"
+	Local $sCurrent = _PatchStatusMD5($sPath)
+	If $sCurrent = "" Then Return "Unknown"
+	Local $sPatched = StringLower(IniRead($patchStatesINI, "MD5_Patched", $sPath, ""))
+	Local $sOriginal = StringLower(IniRead($patchStatesINI, "MD5_Original", $sPath, ""))
+	If $sPatched <> "" And $sPatched <> $sOriginal And $sCurrent = $sPatched Then Return "Patched"
+	If _IsPhotoshop2711($sPath) Or _IsPremiere2652($sPath) Or _IsInDesign216($sPath) Then
+		Switch _VerifiedPatchFileHash($sPath)
+			Case "A51F01C930CB36495B10FD94D198EBF38948D391BE3DE16400F0882C5E6C20C0", _
+					"CFB60B0438033BCED1DAC3040FD40AEB3FC9C8FA5B36023C7DC0037BDE3E5B63", _
+					"A0DC11EA1F8F416BDF5A80A570EE4D1E3225423DA43ECE0C0418E901D77EA674"
+				Return "Patched"
+		EndSwitch
+	EndIf
+	Local $iUXP = _UXPPatchedState($sPath)
+	If $iUXP = 1 Then Return "Patched"
+	If StringLeft(_StartupPatchBlockReason($sPath), 28) = "No additional patch required" Then Return "Not required"
+	If $sOriginal <> "" And $sCurrent = $sOriginal Then Return "Unpatched"
+	If $iUXP = 0 Then Return "Unpatched"
+	If FileExists($sPath & ".bak") Then
+		Local $sBackup = _PatchStatusMD5($sPath & ".bak")
+		If $sBackup = $sCurrent Then Return "Unpatched"
+		If $sBackup <> "" Then Return "Modified"
+	EndIf
+	If $sPatched <> "" Or $sOriginal <> "" Then Return "Modified"
+	Return "Unknown"
+EndFunc
+
 Func _VerifyListedFiles($bSilent = False)
 	Local $iCount = _GUICtrlListView_GetItemCount($idListview)
-	If $iCount = 0 Then
-		If Not $bSilent Then MemoWrite(@CRLF & "Nothing to verify.")
-		Return
-	EndIf
-
+	If $iCount = 0 Or Not $g_bSearchCompleted Then Return
 	If Not $bSilent Then
 		ToggleLog(0)
-		MemoWrite(@CRLF & "Verifying " & $iCount & " file(s) against patch_states.ini...")
+		MemoWrite(@CRLF & "Verifying " & $iCount & " file(s) against their current contents...")
 	EndIf
-	LogWrite(1, "Verify pass starting on " & $iCount & " file(s).")
-
-	Local $mPatched = ObjCreate("Scripting.Dictionary")
-	Local $mOriginal = ObjCreate("Scripting.Dictionary")
-	Local $aSecP = IniReadSection($patchStatesINI, "MD5_Patched")
-	Local $aSecO = IniReadSection($patchStatesINI, "MD5_Original")
-	If IsArray($aSecP) Then
-		For $k = 1 To $aSecP[0][0]
-			$mPatched.Item(StringLower($aSecP[$k][0])) = StringLower($aSecP[$k][1])
-		Next
-	EndIf
-	If IsArray($aSecO) Then
-		For $k = 1 To $aSecO[0][0]
-			$mOriginal.Item(StringLower($aSecO[$k][0])) = StringLower($aSecO[$k][1])
-		Next
-	EndIf
-
-	Local $bWeStartedCrypt = False
-	If Not $g_bCryptActive Then
-		_Crypt_Startup()
-		$g_bCryptActive = True
-		$bWeStartedCrypt = True
-	EndIf
-	ProgressWrite(0)
-	_SubProgressWrite(0)
-
-	Local $iDone = 0, $iPatched = 0, $iUnpatched = 0, $iModified = 0, $iUnknown = 0, $iMissing = 0
-
+	Local $mCounts = ObjCreate("Scripting.Dictionary")
+	Local $aStatuses[6] = ["Patched", "Unpatched", "Modified", "Unknown", "Missing", "Not required"]
+	For $sStatus In $aStatuses
+		$mCounts.Item($sStatus) = 0
+	Next
 	For $i = 0 To $iCount - 1
 		Local $sPath = _GUICtrlListView_GetItemText($idListview, $i, 1)
-		Local $sDisplayStatus = "Unpatched"
-
-		If Not FileExists($sPath) Then
-			$iMissing += 1
-		Else
-			Local $iUxp = _UXPPatchedState($sPath)
-			If $iUxp = 1 Then
-				$sDisplayStatus = "Patched"
-				$iPatched += 1
-			ElseIf $iUxp = 0 Then
-				$sDisplayStatus = "Unpatched"
-				$iUnpatched += 1
-			Else
-				If Not $bSilent Then _GUICtrlListView_SetItemText($idListview, $i, "Verifying...", 2)
-				_SubProgressWrite(50)
-				Local $sMD5 = StringLower(StringTrimLeft(String(_Crypt_HashFile($sPath, $CALG_MD5)), 2))
-				Local $sKey = StringLower($sPath)
-
-				If $mPatched.Exists($sKey) And $mPatched.Item($sKey) = $sMD5 Then
-					$sDisplayStatus = "Patched"
-					$iPatched += 1
-				ElseIf $mOriginal.Exists($sKey) And $mOriginal.Item($sKey) = $sMD5 Then
-					$sDisplayStatus = "Unpatched"
-					$iUnpatched += 1
-				ElseIf $mPatched.Exists($sKey) Or $mOriginal.Exists($sKey) Then
-					$iModified += 1
-				Else
-					$iUnknown += 1
-				EndIf
-			EndIf
-		EndIf
-
-		_GUICtrlListView_SetItemText($idListview, $i, $sDisplayStatus, 2)
-		$iDone += 1
-		ProgressWrite(Round($iDone / $iCount * 100))
-		_SubProgressWrite(100)
+		Local $sStatus = _ResolvePatchStatus($sPath)
+		_GUICtrlListView_SetItemText($idListview, $i, $sStatus, 2)
+		$mCounts.Item($sStatus) += 1
+		If $sStatus = "Patched" Or $sStatus = "Unpatched" Then IniWrite($patchStatesINI, "Patch_Status", $sPath, $sStatus)
+		ProgressWrite(Round(($i + 1) / $iCount * 100))
 	Next
-
-	If $bWeStartedCrypt Then
-		_Crypt_Shutdown()
-		$g_bCryptActive = False
-	EndIf
-
 	ProgressWrite(0)
 	_SubProgressWrite(0)
-
-	Local $iUnpatchedSum = $iUnpatched + $iModified
-	Local $sSummary = "Verify complete: " & $iPatched & " Patched, " & $iUnpatchedSum & " Unpatched, " & _
-			$iUnknown & " Unknown, " & $iMissing & " Missing."
-	If Not $bSilent Then MemoWrite(@CRLF & $sSummary)
-	LogWrite(1, $sSummary)
+	Local $sSummary = "Verify complete: "
+	For $i = 0 To UBound($aStatuses) - 1
+		If $i > 0 Then $sSummary &= ", "
+		$sSummary &= $mCounts.Item($aStatuses[$i]) & " " & $aStatuses[$i]
+	Next
+	If Not $bSilent Then MemoWrite(@CRLF & $sSummary & ".")
+	LogWrite(1, $sSummary & ".")
 	If Not $bSilent Then ToggleLog(1)
 EndFunc
 
@@ -3703,11 +3674,114 @@ Func _ProcessCloseEx($sName)
 	ProcessWaitClose($iPID)
 EndFunc
 
+Func _StartupPatchBlockReason($sFilePath)
+	If _IsInDesign216($sFilePath) Then
+		Local $sIDHash = _VerifiedPatchFileHash($sFilePath)
+		If $sIDHash <> "7DFEBE42EE578B81EE0E2D6995D7C6CD0784058CF39188BB8DCB926CD3E4CFFF" And _
+				$sIDHash <> "A0DC11EA1F8F416BDF5A80A570EE4D1E3225423DA43ECE0C0418E901D77EA674" Then _
+				Return "InDesign 21.6: Public.dll differs from the verified build. Restore its clean backup first."
+		If $sIDHash = "A0DC11EA1F8F416BDF5A80A570EE4D1E3225423DA43ECE0C0418E901D77EA674" And Not FileExists($sFilePath & ".bak") Then _
+				Return "InDesign 21.6: the original backup is missing."
+		If FileExists($sFilePath & ".bak") And _VerifiedPatchFileHash($sFilePath & ".bak") <> "7DFEBE42EE578B81EE0E2D6995D7C6CD0784058CF39188BB8DCB926CD3E4CFFF" Then _
+				Return "InDesign 21.6: the backup does not match the verified original."
+		Return ""
+	EndIf
+	If _IsPremiere2652($sFilePath) Then
+		Local $sPRHash = _VerifiedPatchFileHash($sFilePath)
+		If $sPRHash <> "B24E2B442A8E0350EDBC0C214D2FCAE2F68C7D9843AE399E5058D5B5A6786094" And _
+				$sPRHash <> "CFB60B0438033BCED1DAC3040FD40AEB3FC9C8FA5B36023C7DC0037BDE3E5B63" Then _
+				Return "Premiere 26.5.2: executable differs from the verified build. Restore its clean backup first."
+		If $sPRHash = "CFB60B0438033BCED1DAC3040FD40AEB3FC9C8FA5B36023C7DC0037BDE3E5B63" And Not FileExists($sFilePath & ".bak") Then _
+				Return "Premiere 26.5.2: the original backup is missing."
+		If FileExists($sFilePath & ".bak") And _VerifiedPatchFileHash($sFilePath & ".bak") <> "B24E2B442A8E0350EDBC0C214D2FCAE2F68C7D9843AE399E5058D5B5A6786094" Then _
+				Return "Premiere 26.5.2: the backup does not match the verified original."
+		Return ""
+	EndIf
+	If _IsPhotoshop2711($sFilePath) Then
+		Local $sPSHash = _VerifiedPatchFileHash($sFilePath)
+		If $sPSHash <> "87C04A197D3110A770DFB953A5A54393883E4D4C57F7468BA776FF86289951CC" And _
+				$sPSHash <> "A51F01C930CB36495B10FD94D198EBF38948D391BE3DE16400F0882C5E6C20C0" Then _
+				Return "Photoshop 27.11: executable differs from the verified build. Restore its clean backup first."
+		If FileExists($sFilePath & ".bak") And _VerifiedPatchFileHash($sFilePath & ".bak") <> "87C04A197D3110A770DFB953A5A54393883E4D4C57F7468BA776FF86289951CC" Then _
+				Return "Photoshop 27.11: the backup does not match the verified original."
+		Return ""
+	EndIf
+
+	Local $aAffected[3][4] = [ _
+			["Adobe Photoshop 2026", "Photoshop.exe", "27.11.0.26", "Photoshop"], _
+			["Adobe Premiere Pro 2026", "Adobe Premiere Pro.exe", "26.5.2.5", "Premiere Pro"], _
+			["Adobe InDesign 2026", "InDesign.exe", "21.6.0.57", "InDesign"]]
+	For $iGuard = 0 To UBound($aAffected) - 1
+		Local $aRoot = StringRegExp($sFilePath, "(?i)^(.*\\" & $aAffected[$iGuard][0] & "\\)", 1)
+		If Not IsArray($aRoot) Then ContinueLoop
+		Local $sVersion = FileGetVersion($aRoot[0] & $aAffected[$iGuard][1])
+		If $sVersion = $aAffected[$iGuard][2] Then Return "No additional patch required for " & $aAffected[$iGuard][3] & " " & $sVersion & "."
+	Next
+	Return ""
+EndFunc
+
+Func _IsInDesign216($sFilePath)
+	Return StringRegExp($sFilePath, "(?i)\\Public\.dll$") And FileGetVersion($sFilePath) = "21.6.0.57"
+EndFunc
+
+Func _InDesign216VerifyOutput($sFilePath)
+	If Not StringRegExp($sFilePath, "(?i)\\Public\.dll$") Or FileGetVersion($sFilePath & ".bak") <> "21.6.0.57" Then Return True
+	If _VerifiedPatchFileHash($sFilePath) = "A0DC11EA1F8F416BDF5A80A570EE4D1E3225423DA43ECE0C0418E901D77EA674" Then Return True
+	If FileCopy($sFilePath & ".bak", $sFilePath, $FC_OVERWRITE) Then
+		LogWrite(1, "InDesign output verification failed; original restored.")
+	Else
+		LogWrite(1, "InDesign output verification failed; restore from the preserved .bak is required.")
+	EndIf
+	Return False
+EndFunc
+
+Func _IsPhotoshop2711($sFilePath)
+	Return StringRegExp($sFilePath, "(?i)\\Photoshop\.exe$") And FileGetVersion($sFilePath) = "27.11.0.26"
+EndFunc
+
+Func _IsPremiere2652($sFilePath)
+	Return StringRegExp($sFilePath, "(?i)\\Adobe Premiere Pro\.exe$") And FileGetVersion($sFilePath) = "26.5.2.5"
+EndFunc
+
+Func _Premiere2652VerifyOutput($sFilePath)
+	If Not StringRegExp($sFilePath, "(?i)\\Adobe Premiere Pro\.exe$") Or FileGetVersion($sFilePath & ".bak") <> "26.5.2.5" Then Return True
+	If _VerifiedPatchFileHash($sFilePath) = "CFB60B0438033BCED1DAC3040FD40AEB3FC9C8FA5B36023C7DC0037BDE3E5B63" Then Return True
+	If FileCopy($sFilePath & ".bak", $sFilePath, $FC_OVERWRITE) Then
+		LogWrite(1, "Premiere output verification failed; original restored.")
+	Else
+		LogWrite(1, "Premiere output verification failed; restore from the preserved .bak is required.")
+	EndIf
+	Return False
+EndFunc
+
+Func _VerifiedPatchFileHash($sFilePath)
+	_Crypt_Startup()
+	Local $sHash = StringUpper(StringTrimLeft(String(_Crypt_HashFile($sFilePath, $CALG_SHA_256)), 2))
+	_Crypt_Shutdown()
+	Return $sHash
+EndFunc
+
+Func _Photoshop2711VerifyOutput($sFilePath)
+	If Not StringRegExp($sFilePath, "(?i)\\Photoshop\.exe$") Or FileGetVersion($sFilePath & ".bak") <> "27.11.0.26" Then Return True
+	If _VerifiedPatchFileHash($sFilePath) = "A51F01C930CB36495B10FD94D198EBF38948D391BE3DE16400F0882C5E6C20C0" Then Return True
+	If FileCopy($sFilePath & ".bak", $sFilePath, $FC_OVERWRITE) Then
+		LogWrite(1, "Photoshop output verification failed; original restored.")
+	Else
+		LogWrite(1, "Photoshop output verification failed; restore from the preserved .bak is required.")
+	EndIf
+	Return False
+EndFunc
+
 Func MyGlobalPatternSearch($MyFileToParse)
 	$aInHexArray = $aNullArray
 	$aOutHexGlobalArray = $aNullArray
 	ReDim $g_aHitPatternsThisFile[0]
 	$g_bUxpHandledFile = False
+	Local $sStartupBlock = _StartupPatchBlockReason($MyFileToParse)
+	If $sStartupBlock <> "" Then
+		LogWrite(1, $sStartupBlock)
+		Return
+	EndIf
 	_SubProgressWrite(0)
 	$MyRegExpGlobalPatternSearchCount = 0
 	$Count = 15
@@ -3815,9 +3889,12 @@ Func ExecuteSearchPatterns($FileName, $DefaultPatterns, $MyFileToParse)
 		$aPatterns = IniReadArray($sINIPath, "DefaultPatterns", "Values", "")
 	EndIf
 
+	If _IsPhotoshop2711($MyFileToParse) Then $aPatterns = IniReadArray($sINIPath, "CustomPatterns", "photoshop.exe|27.11.0.26", "")
+	If _IsPremiere2652($MyFileToParse) Then $aPatterns = IniReadArray($sINIPath, "CustomPatterns", "adobe premiere pro.exe|26.5.2.5", "")
+	If _IsInDesign216($MyFileToParse) Then $aPatterns = IniReadArray($sINIPath, "CustomPatterns", "public.dll|21.6.0.57", "")
 	For $i = 0 To UBound($aPatterns) - 1
 		$sPattern = StringStripWS($aPatterns[$i], 3)
-		If StringLeft($sPattern, 5) = "AccOS" Then
+		If StringLeft($sPattern, 5) = "AccOS" Or StringLeft($sPattern, 5) = "PimOS" Then
 			If Not $bCCOSBuildChecked Then
 				$bCCOSBuildSupported = _CCOSNativeBuildSupported($MyFileToParse)
 				$bCCOSBuildChecked = True
@@ -3849,14 +3926,15 @@ Func ExecuteSearchPatterns($FileName, $DefaultPatterns, $MyFileToParse)
 EndFunc
 
 Func _CCOSNativeBuildSupported($sFilePath)
-	If Not StringRegExp($sFilePath, "(?i)\\AppsPanelBL\.dll$") Then Return False
+	If Not StringRegExp($sFilePath, "(?i)\\(AppsPanelBL|HDPIM)\.dll$") Then Return False
 	Local $sOriginal = $sFilePath
 	If FileExists($sFilePath & ".bak") Then $sOriginal &= ".bak"
 	_Crypt_Startup()
 	Local $sOriginalHash = StringUpper(StringTrimLeft(String(_Crypt_HashFile($sOriginal, $CALG_SHA_256)), 2))
 	_Crypt_Shutdown()
 	If $sOriginalHash = "4C1158F488EF264D37311C18C1A99AB3C006507A58E42AA616B8EEC59AF23178" Then Return True
-	LogWrite(1, "Skipping the CC 24H2 override: this AppsPanel build is not supported.")
+	If StringRegExp($sFilePath, "(?i)\\HDPIM\.dll$") And $sOriginalHash = "F522B6A6F43FEDA19351269E82C50B9EE5068198275DEC663260EAAED1CC4AA8" Then Return True
+	LogWrite(1, "Skipping the CC OS override: this AppsPanel build is not supported.")
 	Return False
 EndFunc
 
@@ -3921,7 +3999,6 @@ Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToRepla
 			$sWildcardReplacePattern = ""
 			$sFinalReplacePattern = ""
 
-
 			$aInHexArray = $aInHexTempArray[$i]
 
 			If @error = 0 Then
@@ -3972,6 +4049,11 @@ Func MyRegExpGlobalPatternSearch($FileToParse, $PatternToSearch, $PatternToRepla
 EndFunc
 
 Func MyGlobalPatternPatch($MyFileToPatch, $MyArrayToPatch)
+	Local $sStartupBlock = _StartupPatchBlockReason($MyFileToPatch)
+	If $sStartupBlock <> "" Then
+		LogWrite(1, $sStartupBlock)
+		Return
+	EndIf
 	_SubProgressWrite(50)
 	Local $iRows = UBound($MyArrayToPatch)
 	If $iRows > 0 Then
@@ -4032,6 +4114,9 @@ Func MyGlobalPatternPatch($MyFileToPatch, $MyArrayToPatch)
 		Local $bPatchedData = Binary($sStringOut)
 		FileWrite($hFileOpen1, $bPatchedData)
 		FileClose($hFileOpen1)
+		If Not _Photoshop2711VerifyOutput($MyFileToPatch) Then Return
+		If Not _Premiere2652VerifyOutput($MyFileToPatch) Then Return
+		If Not _InDesign216VerifyOutput($MyFileToPatch) Then Return
 		_SubProgressWrite(100)
 		Sleep(100)
 
@@ -4068,6 +4153,11 @@ Func MyGlobalPatternPatch($MyFileToPatch, $MyArrayToPatch)
 EndFunc
 
 Func _PatchLargeFileWithPatterns($sFilePath)
+	Local $sStartupBlock = _StartupPatchBlockReason($sFilePath)
+	If $sStartupBlock <> "" Then
+		LogWrite(1, $sStartupBlock)
+		Return 0
+	EndIf
 	Local $LFP_CHUNK = 50 * 1024 * 1024
 	Local $LFP_OVERLAP = 256
 
@@ -4110,12 +4200,16 @@ Func _PatchLargeFileWithPatterns($sFilePath)
 		$aPatNames = IniReadArray($sINIPath, "DefaultPatterns", "Values", "")
 	EndIf
 
+	If _IsPhotoshop2711($sFilePath) Then $aPatNames = IniReadArray($sINIPath, "CustomPatterns", "photoshop.exe|27.11.0.26", "")
+	If _IsPremiere2652($sFilePath) Then $aPatNames = IniReadArray($sINIPath, "CustomPatterns", "adobe premiere pro.exe|26.5.2.5", "")
+	If _IsInDesign216($sFilePath) Then $aPatNames = IniReadArray($sINIPath, "CustomPatterns", "public.dll|21.6.0.57", "")
 	Local $aPats[0][3]
 	Local $aRegex[0]
 	For $i = 0 To UBound($aPatNames) - 1
 		Local $sName = StringStripWS($aPatNames[$i], 3)
 		If $sName = "" Then ContinueLoop
-		If StringLeft($sName, 5) = "AccOS" And Not _CCOSNativeBuildSupported($sFilePath) Then ContinueLoop
+		If $bEnableGood1 = 0 And StringLower($sName) = "good1" Then ContinueLoop
+		If (StringLeft($sName, 5) = "AccOS" Or StringLeft($sName, 5) = "PimOS") And Not _CCOSNativeBuildSupported($sFilePath) Then ContinueLoop
 		Local $sData = IniRead($sINIPath, "Patches", $sName, "")
 		If Not StringInStr($sData, "|") Then ContinueLoop
 		Local $aSplit = StringSplit($sData, "|")
@@ -4309,6 +4403,9 @@ Func _PatchLargeFileWithPatterns($sFilePath)
 	WEnd
 	FileClose($hSrc)
 	FileClose($hDst)
+	If Not _Photoshop2711VerifyOutput($sFilePath) Then Return -1
+	If Not _Premiere2652VerifyOutput($sFilePath) Then Return -1
+	If Not _InDesign216VerifyOutput($sFilePath) Then Return -1
 
 	LogWrite(1, $sFilePath)
 	Local $sHitNames = ""
@@ -4771,11 +4868,11 @@ Func _ReconcilePatchStates()
 		EndIf
 	Next
 
-	For $sINIPath In $mStatus.Keys()
-		If Not $mIniSeen.Exists($sINIPath) Then
-			$mRemovePaths.Item($sINIPath) = 1
+	For $sIndexedPath In $mStatus.Keys()
+		If Not $mIniSeen.Exists($sIndexedPath) Then
+			$mRemovePaths.Item($sIndexedPath) = 1
 			$aResult[0] += 1
-			LogWrite(1, "Missing - " & $sINIPath)
+			LogWrite(1, "Missing - " & $sIndexedPath)
 		EndIf
 	Next
 
@@ -5851,10 +5948,7 @@ Func _AutoUnpackIfRuntimeInstaller($sFilePath)
 			Local $aVer = _GetAfterFXVersion($sExe)
 			Local $sExeNameOnly = StringRegExpReplace($sExe, "^.*\\", "")
 			LogWrite(1, "Auto-unpack version check: " & $sExeNameOnly & " = v" & $aVer[0] & "." & $aVer[1])
-			If ($aVer[0] = 26 And $aVer[1] >= 3) Or $aVer[0] > 26 Then
-				LogWrite(1, "Auto-unpack skipped: app v" & $aVer[0] & "." & $aVer[1] & " - not required for v26.3+")
-				Return True
-			EndIf
+
 		Else
 			LogWrite(1, "Auto-unpack version check: could not locate app exe in " & $sRoot & " - defaulting to unpack")
 		EndIf
@@ -5865,7 +5959,7 @@ Func _AutoUnpackIfRuntimeInstaller($sFilePath)
 	EndIf
 
 	If Not IsUPXPacked($sFilePath) Then
-		LogWrite(1, "Auto-unpacked failed - file already unpacked; moving on to patching")
+		LogWrite(1, "Auto-unpack not required - file is already unpacked; moving on to patching")
 		Return True
 	EndIf
 
@@ -5935,16 +6029,37 @@ Func _ListView_LeftClick($hListView, $lParam)
 	EndIf
 EndFunc
 
-Func _ListView_RightClick()
-	Local $aHit
-	$aHit = _GUICtrlListView_HitTest($g_idListview)
-	If $aHit[0] <> -1 Then
-		If _GUICtrlListView_GetItemChecked($g_idListview, $aHit[0]) = 1 Then
-			_GUICtrlListView_SetItemChecked($g_idListview, $aHit[0], 0)
-		Else
-			_GUICtrlListView_SetItemChecked($g_idListview, $aHit[0], 1)
-		EndIf
+Func _ListView_RightClick($lParam)
+	If Not $g_bSearchCompleted Then Return
+	Local $tItem = DllStructCreate($tagNMITEMACTIVATE, $lParam)
+	Local $iItem = DllStructGetData($tItem, "Index")
+	If $iItem < 0 Then Return
+	If Not _GUICtrlListView_GetItemSelected($g_idListview, $iItem) Then
+		_GUICtrlListView_SetItemSelected($g_idListview, -1, False)
+		_GUICtrlListView_SetItemSelected($g_idListview, $iItem, True, True)
 	EndIf
+EndFunc
+
+Func _CopyListedPaths($bDirectory)
+	If Not $g_bSearchCompleted Then
+		If $bDirectory Then Return ClipPut($MyDefPath)
+		Return False
+	EndIf
+	Local $aSelected = _GUICtrlListView_GetSelectedIndices($g_idListview, True)
+	If Not IsArray($aSelected) Or $aSelected[0] = 0 Then Return False
+	Local $mPaths = ObjCreate("Scripting.Dictionary")
+	$mPaths.CompareMode = 1
+	Local $sOutput = ""
+	For $i = 1 To $aSelected[0]
+		Local $sPath = _GUICtrlListView_GetItemText($g_idListview, $aSelected[$i], 1)
+		If $bDirectory Then $sPath = StringRegExpReplace($sPath, "[^\\]+$", "")
+		If $sPath = "" Or $mPaths.Exists($sPath) Then ContinueLoop
+		$mPaths.Item($sPath) = 1
+		If $sOutput <> "" Then $sOutput &= @CRLF
+		$sOutput &= $sPath
+	Next
+	If $sOutput = "" Then Return False
+	Return ClipPut($sOutput)
 EndFunc
 
 Func _GetAppGroupName($sFilePath)
@@ -6801,7 +6916,7 @@ Func WM_NOTIFY($hWnd, $iMsg, $wParam, $lParam)
 				Case $NM_CLICK
 					_ListView_LeftClick($g_idListview, $lParam)
 				Case $NM_RCLICK
-					_ListView_RightClick()
+					_ListView_RightClick($lParam)
 			EndSwitch
 	EndSwitch
 	Return $GUI_RUNDEFMSG
@@ -6812,6 +6927,10 @@ Func hL_WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
 	Local $iCode = BitShift($wParam, 16)
 
 	If $iCode = $STN_CLICKED Then
+		If $iIDFrom = $g_idRepositoryLink Then
+			ShellExecute($g_sRepositoryURL)
+			Return $GUI_RUNDEFMSG
+		EndIf
 		If $iIDFrom = $g_idHyperlinkMain Or $iIDFrom = $g_idHyperlinkLog Or $iIDFrom = $g_idHyperlinkOptions _
 				Or $iIDFrom = $g_idHyperlinkPopup Or $iIDFrom = $g_idHyperlinkFW _
 				Or $iIDFrom = $g_idHyperlinkHosts Or $iIDFrom = $g_idHyperlinkWT _
@@ -7661,7 +7780,6 @@ Func _SetupHostsAutoUpdate($iMethod, $sDailyTime = "00:00")
 			If $iAns <> $IDYES Then Return SetError(2, 0, False)
 		EndIf
 	EndIf
-
 
 	If $iMethod = $g_iHAU_METHOD_ADVANCED Then
 		Local $bDeployed = FileInstall("resources\UpdateHostsFile.ps1", $g_sHAU_PS1_TARGET, 1)
@@ -10227,7 +10345,7 @@ Func _ReloadAdobeNow()
 	Else
 		LogWrite(1, $iSurvived & " Adobe process(es) survived - if the Install/Open state misbehaves, a full restart will clear it.")
 	EndIf
-	; CC installation needs its elevation service after the shutdown above.
+
 	RegRead("HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\AdobeUpdateService", "ImagePath")
 	If Not @error Then
 		Local $iServiceResult = RunWait('"' & @SystemDir & '\sc.exe" start "AdobeUpdateService"', "", @SW_HIDE)

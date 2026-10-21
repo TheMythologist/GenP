@@ -1,4 +1,4 @@
-$scriptDir = "C:\Windows\System32\drivers\etc"
+﻿$scriptDir = "C:\Windows\System32\drivers\etc"
 $logDirectory = "C:\Windows\System32\drivers\etc"
 $logFile = "$logDirectory\UpdateHostsFile.log"
 if (-not (Test-Path -Path $logDirectory)) { New-Item -ItemType Directory -Path $logDirectory -Force }

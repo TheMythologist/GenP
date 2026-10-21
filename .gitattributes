@@ -1,1 +1,8 @@
-v4.2.1-hotfix/GenP/resources/mitmproxy/installer.zip filter=lfs diff=lfs merge=lfs -text
+* text=auto
+*.au3 text eol=crlf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.exe binary
+*.dll binary
+*.zip binary
+*.ico binary

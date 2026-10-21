@@ -1,12 +1,4 @@
-<#
-.SYNOPSIS
-Checks installed Adobe installer components without modifying them.
-.DESCRIPTION
-Exit 0 means the selected components have valid Adobe signatures. Exit 1
-means a component is missing or fails validation. This does not guarantee
-installation success. Use Adobe's repair workflow when validation fails.
-#>
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ComponentRoot = "${env:CommonProgramFiles(x86)}\Adobe\Adobe Desktop Common"
 )

@@ -1,13 +1,3 @@
-"""
-Verify that third-party binaries (UPX and wintrust.dll) in each version
-directory match their official upstream sources.
-
-- UPX:          compared against the GitHub release at github.com/upx/upx
-- wintrust.dll: looked up by SHA-256 in winbindex (winbindex.m417z.com)
-
-Exit code 0 = all checks passed, 1 = at least one check failed.
-"""
-
 import gzip
 import hashlib
 import json
@@ -25,10 +15,7 @@ WINBINDEX_URL = (
     "https://winbindex.m417z.com/data/by_filename_compressed/wintrust.dll.json.gz"
 )
 
-# Cache the winbindex data across multiple version directories so we only
-# download it once.
 _winbindex_cache: dict | None = None
-
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -36,7 +23,6 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 16), b""):
             h.update(chunk)
     return h.hexdigest()
-
 
 def fetch_url(url: str) -> bytes:
     req = urllib.request.Request(
@@ -46,16 +32,12 @@ def fetch_url(url: str) -> bytes:
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
 
-
-# -- UPX verification --------------------------------------------------------
-
-
 def verify_upx(upx_dir: Path) -> bool:
-    """Find the UPX zip, download the matching release, compare SHA-256."""
+
     zips = list(upx_dir.glob("upx-*-win64.zip"))
     if not zips:
         print(f"  [SKIP] No upx-*-win64.zip found in {upx_dir}")
-        return True  # nothing to verify
+        return True
 
     zip_path = zips[0]
     match = re.match(r"upx-(.+)-win64\.zip", zip_path.name)
@@ -93,10 +75,6 @@ def verify_upx(upx_dir: Path) -> bool:
         print("    [FAIL] SHA-256 does NOT match official GitHub release")
         return False
 
-
-# -- wintrust.dll verification -----------------------------------------------
-
-
 def load_winbindex() -> dict:
     global _winbindex_cache
     if _winbindex_cache is not None:
@@ -107,10 +85,8 @@ def load_winbindex() -> dict:
     _winbindex_cache = json.loads(gzip.decompress(raw))
     return _winbindex_cache
 
-
 def verify_wintrust(wintrust_dir: Path) -> bool:
-    """Look up the DLL's SHA-256 in winbindex to confirm it's a known
-    Microsoft-signed binary."""
+
     dll_path = wintrust_dir / "wintrust.dll"
     if not dll_path.exists():
         print(f"  [SKIP] wintrust.dll not found in {wintrust_dir}")
@@ -138,7 +114,6 @@ def verify_wintrust(wintrust_dir: Path) -> bool:
     description = file_info.get("description", "")
     signing = file_info.get("signingStatus", "unknown")
 
-    # Identify which Windows updates shipped this DLL
     win_versions = entry.get("windowsVersions", {})
     updates = []
     for build, build_data in win_versions.items():
@@ -157,10 +132,6 @@ def verify_wintrust(wintrust_dir: Path) -> bool:
     print("    [PASS] SHA-256 matches known Microsoft binary in winbindex")
     return True
 
-
-# -- Main --------------------------------------------------------------------
-
-
 def verify_version_dir(version_dir: Path) -> bool:
     print(f"\n{'=' * 60}")
     print(f"Verifying {version_dir.name}")
@@ -170,11 +141,9 @@ def verify_version_dir(version_dir: Path) -> bool:
     wintrust_ok = verify_wintrust(version_dir / "WinTrust")
     return upx_ok and wintrust_ok
 
-
 def main():
     repo_root = Path(__file__).resolve().parent
 
-    # Accept specific version dirs as arguments, or scan for all v* dirs
     if len(sys.argv) > 1:
         version_dirs = [repo_root / arg for arg in sys.argv[1:]]
     else:
@@ -202,7 +171,6 @@ def main():
     print("=" * 60)
 
     sys.exit(0 if all_ok else 1)
-
 
 if __name__ == "__main__":
     main()

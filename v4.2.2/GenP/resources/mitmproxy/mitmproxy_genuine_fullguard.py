@@ -1,9 +1,3 @@
-# mitmproxy_genuine_fullguard.py
-"""
-WARNING: Adobe frequently updates their genuine popup detection URLs and telemetry endpoints.
-This script uses best-effort pattern matching but may require updates if popups reappear.
-Please monitor Mitmproxy logs regularly and update the regexes or blocklists accordingly.
-"""
 from mitmproxy import http, ctx
 from pathlib import Path
 import re, datetime, sys, os
